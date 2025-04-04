@@ -3,7 +3,8 @@ import { makeSignDoc, serializeSignDoc } from '@cosmjs/amino'
 import { KnownError } from './error'
 import { objectMatchesStructure } from './objectMatchesStructure'
 import { makePublicKey } from '../publicKeys'
-import { AuthorizedRequest, PublicKey, RequestBody } from '../types'
+import { AuthorizedRequest, ProfileDnasKeyWithValue, PublicKey, RequestBody } from '../types'
+import { getDnasParamms, getIsDaoMember } from './dao'
 
 // Middleware to protect routes with authentication. If it does not return, the
 // request is authorized. If successful, the `parsedBody` field will be set on
@@ -111,4 +112,29 @@ export const verifySignature = async (
     console.error('Signature verification', err)
     return false
   }
+}
+
+
+/**
+ *  TODO: Performs verification that a DAO has enabled the DNAS widget, and this is a member of this DAO
+ */
+export const verifyDNASWidgetEnabledAndDaoMember = async (
+  dao: string,
+  body: RequestBody
+): Promise<boolean> => {
+
+  // Validate public key.
+  const publicKey = makePublicKey(
+    body.data.auth.publicKeyType,
+    body.data.auth.publicKeyHex
+  )
+  const signer = publicKey.getBech32Address(body.data.auth.chainBech32Prefix)
+
+  // validate params from dao exist
+  let res = await getDnasParamms(body.data.auth.chainId, dao)
+  if (!res) {
+    return false
+  }
+
+  return getIsDaoMember(body.data.auth.chainId, signer, dao)
 }

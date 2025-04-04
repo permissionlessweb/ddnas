@@ -3,13 +3,17 @@ import { INITIAL_NONCE } from './nft'
 import { PublicKeyBase, makePublicKey } from '../publicKeys'
 import {
   DbRowProfile,
+  DbRowProfileDnasApiKey,
   DbRowProfilePublicKey,
   DbRowProfilePublicKeyChainPreference,
   Env,
+  ProfileDnasKeyWithHash,
+  ProfileDnasKeyWithValue,
   PublicKey,
   PublicKeyJson,
   UpdateProfile,
 } from '../types'
+import { SHA256 } from 'crypto-js'
 
 /**
  * Get the profile for a given name.
@@ -162,6 +166,32 @@ export const getPreferredProfilePublicKey = async (
 }
 
 /**
+ * Get the dnas api keys for a profile.
+ */
+export const getProfileDnasApiKeys = async (
+  env: Env,
+  profileId: number
+): Promise<
+  {
+    row: DbRowProfileDnasApiKey
+  }[]
+> =>
+  (
+    await env.DB.prepare(
+      `
+      SELECT *
+      FROM dnas_api_keys
+      WHERE profileId = ?1
+      `
+    )
+      .bind(profileId)
+      .all<DbRowProfileDnasApiKey>()
+  ).results.map((row) => ({
+    row,
+  }))
+
+
+/**
  * Get the public keys for a profile.
  */
 export const getProfilePublicKeys = async (
@@ -189,7 +219,41 @@ export const getProfilePublicKeys = async (
   }))
 
 /**
- * Get the public key for each chain preference set on a profile.
+ * Get the api key & metadata for for each dao preference set on a profile.
+ */
+export const getProfileDnsApiKeysPerDao = async (
+  env: Env,
+  profileId: number
+): Promise<
+  {
+    chainId: string
+    publicKey: PublicKey
+  }[]
+> => {
+  const rows = (
+    await env.DB.prepare(
+      `
+      SELECT profile_public_key_chain_preferences.chainId AS chainId, profile_public_keys.type as type, profile_public_keys.publicKeyHex AS publicKeyHex
+      FROM profile_public_key_chain_preferences
+      INNER JOIN profile_public_keys
+      ON profile_public_key_chain_preferences.profilePublicKeyId = profile_public_keys.id
+      WHERE profile_public_key_chain_preferences.profileId = ?1
+      `
+    )
+      .bind(profileId)
+      .all<
+        Pick<DbRowProfilePublicKeyChainPreference, 'chainId'> &
+        Pick<DbRowProfilePublicKey, 'type' | 'publicKeyHex'>
+      >()
+  ).results
+
+  return rows.map(({ chainId, type, publicKeyHex }) => ({
+    chainId,
+    publicKey: makePublicKey(type, publicKeyHex),
+  }))
+}
+/**
+ * Get the public key & metadata for for each chain preference set on a profile.
  */
 export const getProfilePublicKeyPerChain = async (
   env: Env,
@@ -213,7 +277,7 @@ export const getProfilePublicKeyPerChain = async (
       .bind(profileId)
       .all<
         Pick<DbRowProfilePublicKeyChainPreference, 'chainId'> &
-          Pick<DbRowProfilePublicKey, 'type' | 'publicKeyHex'>
+        Pick<DbRowProfilePublicKey, 'type' | 'publicKeyHex'>
       >()
   ).results
 
@@ -359,25 +423,25 @@ export const addProfilePublicKey = async (
     // If not attached to the current profile, attach it.
     !currentProfile || currentProfile.id !== profileId
       ? await env.DB.prepare(
-          `
+        `
           INSERT INTO profile_public_keys (profileId, type, publicKeyHex, addressHex)
           VALUES (?1, ?2, ?3, ?4)
           ON CONFLICT DO NOTHING
           RETURNING id
           `
-        )
-          .bind(profileId, publicKey.type, publicKey.hex, publicKey.addressHex)
-          .first<Pick<DbRowProfilePublicKey, 'id'>>()
+      )
+        .bind(profileId, publicKey.type, publicKey.hex, publicKey.addressHex)
+        .first<Pick<DbRowProfilePublicKey, 'id'>>()
       : // Otherwise just find the existing public key.
-        await env.DB.prepare(
-          `
+      await env.DB.prepare(
+        `
           SELECT id
           FROM profile_public_keys
           WHERE type = ?1 AND publicKeyHex = ?2
           `
-        )
-          .bind(publicKey.type, publicKey.hex)
-          .first<Pick<DbRowProfilePublicKey, 'id'>>()
+      )
+        .bind(publicKey.type, publicKey.hex)
+        .first<Pick<DbRowProfilePublicKey, 'id'>>()
   if (!profilePublicKeyRow) {
     throw new KnownError(500, 'Failed to save or retrieve profile public key.')
   }
@@ -392,6 +456,106 @@ export const addProfilePublicKey = async (
     )
   }
 }
+
+
+
+/**
+ * Add dnaapi key to profile and/or optionally update the profile's preferences
+ * for the given daos to this public key.
+ */
+
+export const addDnsProfileApiKey = async (
+  env: Env,
+  profileId: number,
+  publicKey: PublicKey,
+  apiKey: ProfileDnasKeyWithValue,
+  daos: string[]
+) => {
+  try {
+    // Get the current profile attached to the public key
+    const currentProfile = await getProfileFromPublicKeyHex(env, publicKey.hex);
+
+    // If the api key is attached to a different profile, remove it
+    if (currentProfile && currentProfile.id !== profileId) {
+      await removeDnasProfileApiKeys(env, currentProfile.id, daos);
+    }
+
+    // For each DAO, create/update the DNAS API key entry
+    for (const dao of daos) {
+      const [chainId, daoAddr] = dao.split(':');
+
+      if (!chainId || !daoAddr) {
+        throw new KnownError(400, `Invalid DAO format: ${dao}. Expected "chainId:daoAddr".`);
+      }
+
+      // Insert new DNAS API key record
+      const dnasApiKeyRow = await env.DB.prepare(`
+        INSERT INTO dnas_api_keys (
+          profileId, 
+          type, 
+          keyMetadata, 
+          signatureLifespan,
+          uploadLimit,
+          chainId,
+          daoAddr
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        ON CONFLICT (profileId, chainId, daoAddr) 
+        DO UPDATE SET
+          type = $2,
+          keyMetadata = $3,
+          signatureLifespan = $4,
+          uploadLimit = $5,
+          updatedAt = CURRENT_TIMESTAMP
+        RETURNING id
+      `).bind(
+        profileId,
+        publicKey.type,
+        apiKey.keyMetadata || JSON.stringify({}),
+        apiKey.signatureLifespan || null,
+        apiKey.uploadLimit || null,
+        chainId,
+        daoAddr
+      ).first<{ id: number }>();
+
+      if (!dnasApiKeyRow) {
+        throw new KnownError(500, `Failed to save DNAS API key for DAO: ${dao}`);
+      }
+
+      // Insert the API key into api_keys table
+      // The trigger will handle updating the apiKeyHash in dnas_api_keys
+      const apiKeyRow = await env.DB.prepare(`
+        INSERT INTO api_keys (
+          dnasKeyId, 
+          apiKeyValue
+        )
+        VALUES ($1, $2)
+        ON CONFLICT (dnasKeyId) 
+        DO UPDATE SET
+          apiKeyValue = $2,
+          updatedAt = CURRENT_TIMESTAMP
+        RETURNING id
+      `).bind(
+        dnasApiKeyRow.id,
+        apiKey.apiKeyValue
+      ).first<{ id: number }>();
+
+      if (!apiKeyRow) {
+        throw new KnownError(500, `Failed to save API key for DAO: ${dao}`);
+      }
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error adding DNAS profile API key:', error);
+
+    if (error instanceof KnownError) {
+      throw error;
+    }
+
+    throw new KnownError(500, 'Failed to add DNAS profile API key.', error);
+  }
+};
 
 /**
  * Set chain preferences for a given public key.
@@ -416,6 +580,31 @@ const setProfileChainPreferences = async (
     )
   )
 }
+/**
+ * Set a default dao for a chain to default to use the key requested for it key assigned to it.
+ * 
+ * First dnas api key registered as default, 
+ */
+// const setChainDaoPreference = async (
+//   env: Env,
+//   profileId: number,
+//   dnasApiKeyRowId: number,
+//   dao: string[]
+// ): Promise<void> => {
+//   // Insert or update chain preferences.
+//   await env.DB.batch(
+//     chainIds.map((chainId) =>
+//       env.DB.prepare(
+//         `
+//         INSERT INTO profile_public_key_chain_preferences (profileId, chainId, profilePublicKeyId)
+//         VALUES (?1, ?2, ?3)
+//         ON CONFLICT (profileId, chainId)
+//         DO UPDATE SET profilePublicKeyId = ?3, updatedAt = CURRENT_TIMESTAMP
+//         `
+//       ).bind(profileId, chainId, dnasApiKeyRowId)
+//     )
+//   )
+// }
 
 /**
  * Remove public keys from profile. If all public keys are removed, delete the
@@ -467,3 +656,71 @@ export const removeProfilePublicKeys = async (
     )
   )
 }
+
+
+/**
+ * Remove api keys from profile. clears any db entry of this key usage from dao members. 
+ *  If all api keys are removed, delete the entire profile.
+ */
+export const removeDnasProfileApiKeys = async (
+  env: Env,
+  profileId: number,
+  daos: string[]
+) => {
+  // Get all api key rows attached to the profile.
+  const dnasApiKeyRows = await getProfileDnasApiKeys(env, profileId)
+
+  // Otherwise remove just these daos dnas api keys.
+  const dnasApiKeyRowsToDelete = daos.flatMap(
+    (key) =>
+      dnasApiKeyRows.find(({ row }) =>
+        // todo:use key id value to remove from db
+        key == row.daoAddr
+      ) || []
+  )
+  await env.DB.batch(
+    dnasApiKeyRowsToDelete.map(({ row: { id } }) =>
+      // Delete cascades to chain preferences.
+      env.DB.prepare(
+        `
+        DELETE FROM dnas_api_keys
+        WHERE id = ?1
+        `
+      ).bind(id)
+    )
+  )
+}
+
+
+/**
+ * Gets the actual API key value for a given DNAS API key ID
+ * 
+ * @param env Database environment
+ * @param dnasApiKeyId The ID of the DNAS API key from dnas_api_keys table
+ * @returns The API key value or null if not found
+ */
+export const getDnasApiKeyValue = async (
+  env: Env,
+  dnasApiKeyId: number
+): Promise<string | null> => {
+  try {
+    // Query the api_keys table to get the actual API key value
+    const apiKeyRow = await env.DB.prepare(`
+      SELECT encryptedKey as apiKeyValue
+      FROM api_keys
+      WHERE dnasKeyId = $1
+      ORDER BY updatedAt DESC
+      LIMIT 1
+    `).bind(dnasApiKeyId).first<{ apiKeyValue: string }>();
+
+    if (!apiKeyRow) {
+      console.log(`No API key found for DNAS API key ID: ${dnasApiKeyId}`);
+      return null;
+    }
+
+    return apiKeyRow.apiKeyValue;
+  } catch (error) {
+    console.error(`Error retrieving API key for DNAS API key ID ${dnasApiKeyId}:`, error);
+    throw new KnownError(500, 'Failed to retrieve API key value.', error);
+  }
+};

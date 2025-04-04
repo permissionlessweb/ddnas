@@ -1,27 +1,37 @@
-# DAO-DNAS
+# pfpk
 
-Dao based,decentralized network attached storage. A [Cloudflare
-Worker](https://developers.cloudflare.com/workers) that allows DAO members to register an API key to use for uploading files with a given set of [Cosmos](https://cosmos.network) wallets / public keys.
+## TODO:
+- support for tracking key usage by dao member
+- support for 
 
-<!-- Currently deployed at https://pfpk.daodao.zone -->
+pic for public key. A [Cloudflare
+Worker](https://developers.cloudflare.com/workers) that allows associating a
+name and NFT (image) with a given set of [Cosmos](https://cosmos.network)
+wallets / public keys.
 
-A dao can register this widget support, and its members then may register
-api keys to store to this worker. API keys registered arenever revealed to the public,
-the only public data regarding the api key is the dao member who registered it, and a valid offline signature lifespan.
+Currently deployed at https://pfpk.daodao.zone
 
-For a dao member to register a key for its fellow dao members to use, a signature from a DAO member must be generated that includes:
-- the daos custom widget value set to its storage-item
-- the lifespan a signature is valid from the time it is created for this api key
-- a limit to the number of times a key can be used a month
+A profile contains a name and NFT image and is associated with one or more
+public keys. Chain preferences establish which public key to use for a given
+chain.
 
-A DAO member can remove or update the api it key its using as long as its a dao member
+In order for the profile to be resolvable by name when searching or resolving on
+a given chain, and thus produce a public key and address to use on that chain, a
+chain preference must be set. This is because different chains use different
+default [derivation
+paths](https://help.myetherwallet.com/en/articles/5867305-hd-wallets-and-derivation-paths)
+for their wallet addresses, and thus different chains can end up with different
+public keys / wallet addresses used by one wallet. For example, Juno (and most
+Cosmos chains) uses coin type (slip44) 118, whereas Terra uses 330. This leads
+to the same wallet (i.e. private key) deriving different public keys (and thus
+addresses) for Juno and Terra. While a wallet can manually specify any
+derivation path and thus access the address for any valid public key that its
+private key controls, it would be confusing for someone to use an address with a
+non-default derivation path. Thus, we require setting a chain preference in
+order to explicitly opt-in/choose the address resolved on each chain so that
+there is never confusion about which address a profile is using.
 
-- any time a dao member leaves or the api is used, we need to remove their api key if it exists
-
-
-### [PROJECT SCOPE](./DAO-DNAS.md)
-
- <!-- Both the update profile and register public keys routes automatically create a
+Both the update profile and register public keys routes automatically create a
 new profile if one does not exist for the calling public key; similary, the
 fetch profile route returns an empty profile object if the provided public key,
 bech32 hash, or address is not associated with any profile. Thus it externally
@@ -209,47 +219,10 @@ with the `signDoc` argument generated using `makeSignDoc` from the
 `@cosmjs/amino` package. This can be seen in the signature verification code
 located in [src/index.ts](./src/utils/auth.ts#L20) around line 20.
 
-### `POST /register-dnas`
-```ts
-type RegisterDnasKeyRequest = {
-  data: {
-    apiKeys: {
-      data: {
-        dao: string;
-        apiKey: {
-          provider_label: string;
-          signature_lifespan: string;
-          upload_limit?: number;
-        };
-        auth: {
-          type: string;
-          nonce: number;
-          chainId: string;
-          chainFeeDenom: string;
-          chainBech32Prefix: string;
-          publicKeyType: string;
-          publicKeyHex: string;
-        };
-      };
-      signature: string;
-    }[];
-    auth: {
-      type: string;
-      nonce: number;
-      chainId: string;
-      chainFeeDenom: string;
-      chainBech32Prefix: string;
-      publicKeyType: string;
-      publicKeyHex: string;
-    };
-  };
-  signature: string;
-};
-```
 ### `POST /register`
 
-
 The expected request body type is:
+
 ```ts
 type RegisterPublicKeyRequest = {
   data: {
@@ -492,4 +465,4 @@ or in the case of an error:
 type StatsResponse = {
   error: string;
 };
-``` -->
+```

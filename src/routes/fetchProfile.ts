@@ -11,6 +11,7 @@ import {
 import {
   INITIAL_NONCE,
   getOwnedNftWithImage,
+  getProfileDnasApiKeys,
   getProfileFromAddressHex,
   getProfileFromPublicKeyHex,
   getProfilePublicKeyPerChain,
@@ -71,26 +72,51 @@ export const fetchProfile: RouteHandler<Request> = async (
     profile.nonce = profileRow.nonce
     profile.name = profileRow.name?.trim() || null
 
-    // Get chains.
-    const accountPerChain = (
-      await getProfilePublicKeyPerChain(env, profileRow.id)
-    ).map(
-      async ({ chainId, publicKey }) =>
-        [
-          chainId,
-          {
-            publicKey: publicKey.json,
-            address: await publicKey.getBech32Address(
-              mustGetChain(chainId).bech32_prefix
-            ),
-          },
-        ] as const
-    )
+    // Get chains and DNA API keys.
+    const publicKeysPerChain = await getProfilePublicKeyPerChain(env, profileRow.id)
+    const ddnas = await getProfileDnasApiKeys(env, profileRow.id)
 
+    // Process the ddnas to map them by daoAddr
+    const dnasByChainAndDaoAddr = ddnas.reduce<
+      Record<string, Record<string, { keyMetadata: string; signatureLifespan: string; uploadLimit?: string }>>
+    >((acc, dna) => {
+      const key = dna.row.chainId
+      if (!acc[key]) {
+        acc[key] = {}
+      }
+
+      // form public dnas object to respond
+      acc[key][dna.row.daoAddr] = {
+        keyMetadata: dna.row.keyMetadata,
+        signatureLifespan: dna.row.signatureLifespan,
+        uploadLimit: dna.row.uploadLimit,
+      }
+
+      return acc
+    }, {})
+
+    // Build the chains object
+    const accountPerChain = publicKeysPerChain.map(async ({ chainId, publicKey }) => {
+      const bech32Prefix = mustGetChain(chainId).bech32_prefix
+      const daoMemberAddress = await publicKey.getBech32Address(bech32Prefix)
+
+      return [
+        chainId,
+        {
+          dnas: dnasByChainAndDaoAddr[chainId] || {},
+          daoMemberPublicKey: publicKey.json,
+          daoMemberAddress,
+        },
+      ] as const
+    })
+
+    // Convert to object and filter out failures
     profile.chains = Object.fromEntries(
-      (await Promise.allSettled(accountPerChain)).flatMap((loadable) =>
-        loadable.status === 'fulfilled' ? [loadable.value] : []
-      )
+      (await Promise.allSettled(accountPerChain))
+        .filter((result): result is PromiseFulfilledResult<readonly [string, any]> =>
+          result.status === 'fulfilled'
+        )
+        .map(result => result.value)
     )
 
     // Verify selected NFT still belongs to the public key before responding
@@ -103,7 +129,7 @@ export const fetchProfile: RouteHandler<Request> = async (
       try {
         // Get profile's public key for the NFT's chain, and then verify that
         // the NFT is owned by it.
-        const publicKey = profile.chains[profileRow.nftChainId]?.publicKey
+        const publicKey = profile.chains[profileRow.nftChainId]?.daoMemberPublicKey
         if (publicKey) {
           profile.nft = await getOwnedNftWithImage(
             env,
