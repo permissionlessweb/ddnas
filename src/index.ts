@@ -70,7 +70,7 @@ router.post('/unregister', authMiddleware, unregisterPublicKeys)
 router.post('/unregister-dnas', authMiddleware, registerPublicKeys)
 
 // Request to use a dnas key as a DAO member
-router.post('/use-dnas', authMiddleware, useDnasKeys)
+router.post('/  ', authMiddleware, useDnasKeys)
 
 // 404
 router.all('*', () => new Response('404', { status: 404 }))

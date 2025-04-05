@@ -1,0 +1,24 @@
+{
+  "name": "ddnas-scripts",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "watch": "tsc --watch"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@dao-dao/types": "^2.5.0-rc.2",
+    "dotenv": "^16.4.7",
+    "dnas": "file:../"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
+  }
+}

@@ -54,7 +54,7 @@ export const registerDnasKeys = async (
                 // Create with the current chain preference.
                 [auth.chainId]
             )
-            // will save api keys to profile after validate & increment
+            // will save api keys to profile after validate & increment nonce
         }
         profile = _profile
     } catch (err) {

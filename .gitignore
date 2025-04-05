@@ -172,3 +172,7 @@ dist
 .dev.vars
 .wrangler
 wrangler.toml
+
+dist/*
+scripts/yarn.lock
+scripts/package-lock.json

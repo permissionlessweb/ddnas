@@ -1,19 +1,26 @@
-# pfpk
+# DAO-DNAS
+ A Dao based,decentralized network attached storage. Built as a [CloudflareWorker](https://developers.cloudflare.com/workers)  that allows DAO members to register an API key to use for uploading files with a given set of [Cosmos](https://cosmos.network) wallets / public keys.
+
 
 ## TODO:
 - support for tracking key usage by dao member
-- support for 
+- support for key owner to allow/deny dao members
+<!-- - any time a dao member leaves or the api is used, we need to remove their api key if it exists -->
 
-pic for public key. A [Cloudflare
-Worker](https://developers.cloudflare.com/workers) that allows associating a
-name and NFT (image) with a given set of [Cosmos](https://cosmos.network)
-wallets / public keys.
 
-Currently deployed at https://pfpk.daodao.zone
+<!-- Currently deployed at https://pfpk.daodao.zone -->
 
-A profile contains a name and NFT image and is associated with one or more
+A dao can register this widget to become enabled by setting an item in their storage, and its members then may register
+api keys to store to this worker. API keys registered aren ever revealed to the public.
+A DAO member is able to inlude the following paramters that will be public:
+- a limit to the file size used monthy for a dao member
+- allow/deny lists for dao member
+
+A DAO member can remove or update the api it key its registered at any time.
+
+<!-- A profile contains a name and NFT image and is associated with one or more
 public keys. Chain preferences establish which public key to use for a given
-chain.
+chain. -->
 
 In order for the profile to be resolvable by name when searching or resolving on
 a given chain, and thus produce a public key and address to use on that chain, a
@@ -219,6 +226,8 @@ with the `signDoc` argument generated using `makeSignDoc` from the
 `@cosmjs/amino` package. This can be seen in the signature verification code
 located in [src/index.ts](./src/utils/auth.ts#L20) around line 20.
 
+
+
 ### `POST /register`
 
 The expected request body type is:
@@ -255,6 +264,7 @@ type RegisterPublicKeyRequest = {
   signature: string;
 };
 ```
+
 
 The returned type is:
 
@@ -316,6 +326,87 @@ with the `signDoc` argument generated using `makeSignDoc` from the
 `@cosmjs/amino` package. This can be seen in the signature verification code
 located in [src/index.ts](./src/utils/auth.ts#L20) around line 20.
 
+
+
+### `POST /register-dnas`
+
+```ts
+type RegisterDnasKeyRequest = {
+  data: {
+    apiKeys: {
+      data: {
+        daos: string;  
+        dnasKey: {
+          provider_label: string; // key label to display
+          signature_lifespan: string; // duration of key to persist (defaults to 30 days)
+          upload_limit?: number; // optional limit of MB a dao member can use 
+          base64_key:string;
+        },
+        auth: {
+          type: string;
+          nonce: number;
+          chainId: string;
+          chainFeeDenom: string;
+          chainBech32Prefix: string;
+          publicKeyType: string;
+          publicKeyHex: string;
+        };
+      };
+      signature: string;
+    }[];
+    auth: {
+      type: string;
+      nonce: number;
+      chainId: string;
+      chainFeeDenom: string;
+      chainBech32Prefix: string;
+      publicKeyType: string;
+      publicKeyHex: string;
+    };
+  };
+  signature: string;
+};
+```
+
+The returned type is:
+
+```ts
+type RegisterDnasKeyResponse = {
+  success: true;
+};
+```
+
+or in the case of an error:
+
+```ts
+type RegisterDnasKeyResponse = {
+  error: string;
+};
+```
+
+This route lets the user register ddnas api keys to their dao, and/or set key 
+access preferences for their registered ddnas keys.
+
+If this route is called with a public key that is not attached to any profile, a
+new empty profile is created automatically.
+
+If a new dns api-key being registered exists for a public key and dao address, the
+api-key will be replaced from it, and the parameters being tracked for its dao members reset.
+ 
+No api-keys attached to a profile are ever acccessable via GET request. When 
+looked up using the GET request at the top (by address, public key, or bech32 hash),
+the only data responded in relation to the key is the paramters set for use by other dao members.
+
+The nonce from the latest GET request must be provided to prevent replay
+attacks.
+
+The signature is derived by calling `OfflineAminoSigner`'s `signAmino` function
+with the `signDoc` argument generated using `makeSignDoc` from the
+`@cosmjs/amino` package. This can be seen in the signature verification code
+located in [src/index.ts](./src/utils/auth.ts#L20) around line 20.
+
+
+
 ### `POST /unregister`
 
 The expected request body type is:
@@ -367,6 +458,110 @@ with the `signDoc` argument generated using `makeSignDoc` from the
 `@cosmjs/amino` package. This can be seen in the signature verification code
 located in [src/index.ts](./src/utils/auth.ts#L20) around line 20.
 
+
+
+
+### `POST /unregister-dnas`
+
+The expected request body type is:
+
+```ts
+type UnregisterDnasKeysRequest = {
+  data: {
+    dnasKey: {
+      dao: string
+      addr: string
+    }[]
+    auth: {
+      type: string;
+      nonce: number;
+      chainId: string;
+      chainFeeDenom: string;
+      chainBech32Prefix: string;
+      publicKeyType: string;
+      publicKeyHex: string;
+    };
+  };
+  signature: string;
+};
+```
+
+The returned type is:
+
+```ts
+type UnregisterPublicKeyResponse = {
+  success: true;
+};
+```
+
+or in the case of an error:
+
+```ts
+type UnregisterPublicKeyResponse = {
+  error: string;
+};
+```
+
+This route lets the user unregister public keys from their profile.
+
+The nonce from the latest GET request must be provided to prevent replay
+attacks.
+
+The signature is derived by calling `OfflineAminoSigner`'s `signAmino` function
+with the `signDoc` argument generated using `makeSignDoc` from the
+`@cosmjs/amino` package. This can be seen in the signature verification code
+located in [src/index.ts](./src/utils/auth.ts#L20) around line 20.
+
+
+### `POST /use-dnas`
+
+```ts
+export type UseDnasKeyRequest = {
+  dnas: {
+    data: {
+      dao: string;
+      keyOwner: string;
+      files: File[];
+      auth: {
+        type: string;
+        nonce: number;
+        chainId: string;
+        chainFeeDenom: string;
+        chainBech32Prefix: string;
+        publicKeyType: string;
+        publicKeyHex: string;
+      };
+    };
+    signature: string;
+  };
+};
+```
+
+The returned type is:
+ 
+```ts
+type UseDnasKeyResponse = {
+    success: true;
+    cid: string;
+    type: string;
+    id: string;
+};
+```
+
+or in the case of an error:
+
+```ts
+type UseDnasKeyResponse = {
+  error: string;
+  status?: number;
+  details?: Record<string, unknown>;
+};
+```
+This route lets the user make use of dns api key registered by DAO members.
+
+
+The dao and the bech32 addr of a dao member that has registerd an api must be provided, in order to make use of the api key to upload. The  server asserts that the key that is signing this message is a  part of the dao, and also that the dao has enabled the ddnas widget.
+
 ### `GET /search/:chainId/:namePrefix`
 
 `chainId` is the chain ID of the chain, such as `juno-1` or `stargaze-1`. It
@@ -376,7 +571,6 @@ the given chain.
 `namePrefix` is the prefix of the name to search for. It is case-insensitive.
 
 The returned type is:
-
 ```ts
 type SearchProfilesResponse = {
   profiles: Array<{

@@ -1,0 +1,235 @@
+{
+    "environment": "Tomato Paradise",
+    "description": "A perfect ecosystem for growing delicious tomatoes",
+    "climate": {
+      "temperature": {
+        "ideal": {
+          "day": "75-85°F (24-29°C)",
+          "night": "65-70°F (18-21°C)"
+        },
+        "limits": {
+          "min": "50°F (10°C)",
+          "max": "95°F (35°C)"
+        },
+        "fun_fact": "Tomatoes are tropical plants that originated in South America, explaining why they love warmth!"
+      },
+      "sunlight": {
+        "hours_needed": "6-8 hours daily",
+        "intensity": "Full sun",
+        "fun_fact": "Tomato leaves actually turn toward the sun throughout the day like little solar panels!"
+      },
+      "humidity": {
+        "ideal": "65-75%",
+        "warning": "High humidity increases risk of fungal diseases"
+      }
+    },
+    "soil": {
+      "ph_range": {
+        "ideal": "6.2-6.8",
+        "tolerable": "5.5-7.5"
+      },
+      "composition": [
+        "Well-draining loam",
+        "Rich in organic matter",
+        "Good moisture retention"
+      ],
+      "nutrients": {
+        "primary": [
+          {
+            "name": "Nitrogen (N)",
+            "role": "Leaf and stem growth",
+            "deficiency_signs": "Yellowing older leaves, stunted growth"
+          },
+          {
+            "name": "Phosphorus (P)",
+            "role": "Root development and flowering",
+            "deficiency_signs": "Purple tinge on leaves, poor fruit set"
+          },
+          {
+            "name": "Potassium (K)",
+            "role": "Fruit development and disease resistance",
+            "deficiency_signs": "Yellow leaf edges, blotchy ripening"
+          }
+        ],
+        "secondary": [
+          "Calcium (prevents blossom end rot)",
+          "Magnesium",
+          "Sulfur"
+        ],
+        "fun_fact": "Tomatoes are heavy feeders and can deplete soil nutrients quickly!"
+      }
+    },
+    "water": {
+      "needs": {
+        "amount": "1-2 inches per week",
+        "consistency": "Even moisture",
+        "technique": "Water at soil level to keep foliage dry"
+      },
+      "signs_of_problems": {
+        "overwatering": [
+          "Yellowing leaves",
+          "Cracked fruit",
+          "Root rot"
+        ],
+        "underwatering": [
+          "Wilting",
+          "Dry, crumbly soil",
+          "Blossom drop"
+        ]
+      },
+      "fun_fact": "Tomato plants are about 95% water themselves!"
+    },
+    "companions": {
+      "good_neighbors": [
+        {
+          "plant": "Basil",
+          "benefit": "Improves flavor and repels pests"
+        },
+        {
+          "plant": "Marigolds",
+          "benefit": "Deter nematodes and other soil pests"
+        },
+        {
+          "plant": "Carrots",
+          "benefit": "Break up soil for tomato roots"
+        },
+        {
+          "plant": "Borage",
+          "benefit": "Attracts pollinators and deters tomato hornworms"
+        }
+      ],
+      "bad_neighbors": [
+        {
+          "plant": "Potatoes",
+          "problem": "Share diseases and compete for nutrients"
+        },
+        {
+          "plant": "Corn",
+          "problem": "Attracts tomato fruit worm"
+        },
+        {
+          "plant": "Brassicas (cabbage, broccoli)",
+          "problem": "Inhibit tomato growth"
+        }
+      ],
+      "fun_fact": "Tomatoes actually 'talk' to neighboring plants through chemical signals in their roots!"
+    },
+    "common_pests": [
+      {
+        "name": "Tomato Hornworm",
+        "description": "Large green caterpillar with white stripes",
+        "damage": "Defoliates plants quickly",
+        "natural_control": "Handpicking, parasitic wasps, diatomaceous earth"
+      },
+      {
+        "name": "Aphids",
+        "description": "Tiny soft-bodied insects in clusters",
+        "damage": "Suck plant juices, transmit diseases",
+        "natural_control": "Ladybugs, soapy water spray, neem oil"
+      },
+      {
+        "name": "Spider Mites",
+        "description": "Tiny spider-like pests that create fine webbing",
+        "damage": "Cause stippling on leaves, plant weakening",
+        "natural_control": "Strong water spray, predatory mites, humidity"
+      }
+    ],
+    "common_diseases": [
+      {
+        "name": "Early Blight",
+        "symptoms": "Dark spots with concentric rings on lower leaves",
+        "prevention": "Mulch, proper spacing, avoid wetting leaves"
+      },
+      {
+        "name": "Late Blight",
+        "symptoms": "Water-soaked spots, white fuzzy growth, rapid death",
+        "prevention": "Copper fungicide, resistant varieties, good air circulation"
+      },
+      {
+        "name": "Blossom End Rot",
+        "symptoms": "Dark, sunken areas at bottom of fruit",
+        "prevention": "Consistent watering, calcium supplementation"
+      }
+    ],
+    "growth_stages": [
+      {
+        "stage": "Seedling",
+        "duration": "2-3 weeks",
+        "care_tips": "Provide 14-16 hours of light, keep soil moist but not wet"
+      },
+      {
+        "stage": "Vegetative Growth",
+        "duration": "3-5 weeks",
+        "care_tips": "Begin fertilizing, ensure adequate spacing"
+      },
+      {
+        "stage": "Flowering",
+        "duration": "1-2 months",
+        "care_tips": "Gently shake plants to aid pollination, maintain even moisture"
+      },
+      {
+        "stage": "Fruit Development",
+        "duration": "6-8 weeks",
+        "care_tips": "Support heavy fruit with cages or stakes, reduce nitrogen"
+      },
+      {
+        "stage": "Ripening",
+        "duration": "2-3 weeks",
+        "care_tips": "Reduce watering slightly, harvest when fully colored"
+      }
+    ],
+    "harvest_tips": {
+      "timing": "Morning harvest provides best flavor",
+      "technique": "Twist gently or cut with scissors",
+      "ripeness_indicators": [
+        "Uniform color (variety dependent)",
+        "Slight give when gently squeezed",
+        "Easily detaches from stem"
+      ],
+      "fun_fact": "A single indeterminate tomato plant can produce 10-15 pounds (4.5-6.8 kg) of fruit in a season!"
+    },
+    "tomato_varieties": {
+      "by_growth_habit": [
+        {
+          "type": "Determinate (Bush)",
+          "characteristics": "Compact, fruits ripen at once, good for containers",
+          "examples": ["Roma", "Celebrity", "Rutgers"]
+        },
+        {
+          "type": "Indeterminate (Vining)",
+          "characteristics": "Continuous growth and fruiting, needs support",
+          "examples": ["Brandywine", "Cherokee Purple", "Sungold"]
+        },
+        {
+          "type": "Semi-determinate",
+          "characteristics": "Combines traits of both types",
+          "examples": ["Husky Cherry Red", "Patio", "Temptation"]
+        }
+      ],
+      "unique_varieties": [
+        {
+          "name": "Green Zebra",
+          "color": "Green with yellow stripes",
+          "flavor_profile": "Tart and zesty"
+        },
+        {
+          "name": "Black Krim",
+          "color": "Deep reddish-purple to black",
+          "flavor_profile": "Rich, smoky, and slightly salty"
+        },
+        {
+          "name": "Mortgage Lifter",
+          "color": "Pinkish-red",
+          "flavor_profile": "Sweet and meaty with few seeds",
+          "fun_fact": "Named because the developer sold enough plants to pay off his mortgage!"
+        }
+      ]
+    },
+    "gardener_wisdom": [
+      "Plant deeper than other vegetables - roots will form along the buried stem",
+      "Mulch with straw to prevent soil-borne diseases from splashing onto leaves",
+      "Prune suckers for larger fruit (indeterminates only)",
+      "Rotate planting locations yearly to prevent disease buildup",
+      "Save seeds from heirloom varieties for next season's planting"
+    ]
+  }

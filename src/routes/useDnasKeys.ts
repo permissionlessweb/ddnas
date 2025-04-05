@@ -47,7 +47,6 @@ export const useDnasKeys = async (
     }
     const profileDnasApiKeys = getProfileDnasApiKeys(env, profile.id)
 
-
     // - key owner has registered a key to this dao
     const thisDnasApi = (await profileDnasApiKeys).find((key) => { key.row.chainId == dnas.data.auth.chainId })
     if (!thisDnasApi) {
@@ -56,27 +55,23 @@ export const useDnasKeys = async (
         })
     }
 
-
     let apiKey = await getDnasApiKeyValue(env, thisDnasApi.row.id)
     if (!apiKey) {
         return respond(500, {
             error: 'Unable  to resolve apiKey.'
         })
     }
-    // add file to collection 
-    const form = new FormData();
 
     // Append each file individually (assuming files array exists in dnas.data)
+    const form = new FormData();
     dnas.data.files.forEach((file: File, index: number) => {
-        form.append(`files.${index}`, file, file.name); // Third param is filename
+        form.append(`files.${index}`, file, file.name);
     });
-    const options = { method: 'POST', headers: { Authorization: apiKey, 'Content-Type': 'multipart/form-data' }, };
 
     // Better error handling with async/await
+    const options = { method: 'POST', headers: { Authorization: Buffer.from(apiKey, 'base64').toString('utf-8'), 'Content-Type': 'multipart/form-data' }, };
     try {
-
         const response = await fetch('https://pinapi.jackalprotocol.com/api/v1/files', options);
-
         if (response.ok) {
             const res: JackalSuccessResponse = await response.json();
             return respond(200, {
@@ -101,12 +96,11 @@ export const useDnasKeys = async (
             error: `Network error: ${err}`
         });
     }
-
 }
 
 
 // JACKAL  API  
-//todo:  -  and file is within params set by key owner. 
+//todo: and file is within params set by key owner. 
 
 // upload multiple files
 // const form = new FormData();

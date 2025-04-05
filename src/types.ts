@@ -1,3 +1,4 @@
+import { OfflineAminoSigner } from '@cosmjs/amino'
 import { Request as IttyRequest } from 'itty-router'
 
 // Cloudflare Worker bindings.
@@ -174,18 +175,17 @@ export type UseDnasKeyRequest = {
 
 // Body of unregister public key response.
 export type UseDnasKeyResponse =
-  | { 
-      success: true;
-      cid: string;
-      type: string;
-      id: string;
-    }
   | {
-      error: string;
-      status?: number;
-      details?: Record<string, unknown>;
-    };
-
+    success: true;
+    cid: string;
+    type: string;
+    id: string;
+  }
+  | {
+    error: string;
+    status?: number;
+    details?: Record<string, unknown>;
+  };
 
 
 // Body of unregister api keys request.
@@ -235,7 +235,7 @@ export type AuthorizedRequest<
 /// Add the id to the db row value to keep the value in the db private
 export type ProfileDnasKeyWithHash = ResolvedDnasApiKey & { apiKeyHash: string }
 /// Contains the base64 encoded api key value
-export type ProfileDnasKeyWithValue = ProfileDnasKeyWithHash & { apiKeyValue: string }
+export type ProfileDnasKeyWithValue = ResolvedDnasApiKey & { apiKeyValue: string }
 
 /**
  * Profile database row.
@@ -350,4 +350,33 @@ export interface PublicKey extends PublicKeyJson {
     message: Uint8Array,
     base64DerSignature: string
   ): Promise<boolean>
+}
+
+
+
+export type SignedBody<
+  Data extends Record<string, unknown> | undefined = Record<string, any>
+> = {
+  data: {
+    auth: Auth
+  } & Data
+  signature: string
+}
+
+
+export type SignatureOptions<
+  Data extends Record<string, unknown> | undefined = Record<string, any>
+> = {
+  type: string
+  nonce: number
+  chainId: string
+  address: string
+  hexPublicKey: string
+  data: Data
+  offlineSignerAmino: OfflineAminoSigner
+  /**
+   * If true, don't sign the message and leave the signature field blank.
+   * Defaults to false.
+   */
+  generateOnly?: boolean
 }
