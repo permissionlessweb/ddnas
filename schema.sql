@@ -115,7 +115,7 @@ CREATE INDEX idx_apiKeyHash ON dnas_api_keys (apiKeyHash);
 -- Create indices for the new fields
 CREATE INDEX idx_chainId ON dnas_api_keys (chainId);
 CREATE INDEX idx_daoAddr ON dnas_api_keys (daoAddr);
-CREATE INDEX idx_profile_chain_dao ON dnas_api_keys (profileId, chainId, daoAddr);
+CREATE INDEX idx_profile_chain_dao_by_keys ON dnas_api_keys (profileId, chainId, daoAddr);
 
 -- Create a trigger to compute and store the SHA-256 hash of the API key
 CREATE TRIGGER tr_insert_apiKeyHash

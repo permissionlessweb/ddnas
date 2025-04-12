@@ -1,25 +1,26 @@
-import { DirectSecp256k1HdWallet, OfflineDirectSigner, OfflineSigner } from "@cosmjs/proto-signing";
+import { DirectSecp256k1HdWallet, OfflineSigner } from "@cosmjs/proto-signing";
 import { SigningCosmWasmClient, CosmWasmClient } from "@cosmjs/cosmwasm-stargate";
 import { fromBase64, toHex } from "@cosmjs/encoding";
 import * as fs from 'fs';
 import * as path from 'path';
 import FormData from 'form-data';
 import dotenv from 'dotenv';
-import { makeSignDoc, OfflineAminoSigner } from "@cosmjs/amino";
+import { makeSignDoc, OfflineAminoSigner, Secp256k1HdWallet } from "@cosmjs/amino";
 import { RequestBody, Auth, RegisterDnasKeyRequest, ProfileDnasKeyWithValue, UseDnasKeyRequest } from 'dnas/src/types'
 
 
-// API and RPC configuration
 // API and RPC configuration
 const LOCAL_RPC = process.env.LOCAL_RPC || "https://juno-rpc.polkachu.com:443";
 const API_BASE = process.env.API_BASE || "http://localhost:58229"; // Your local API server endpoint
 
 // Helper function to initialize wallet from mnemonic
 async function initializeWallet(mnemonic: string): Promise<OfflineSigner> {
-    return DirectSecp256k1HdWallet.fromMnemonic(mnemonic, {
+    const wallet = await Secp256k1HdWallet.fromMnemonic(mnemonic, {
         prefix: "juno", // Change to your chain's prefix if needed
     });
+    return wallet as OfflineSigner;
 }
+
 
 // Helper function to get nonce from API
 async function getNonce(apiBase: string, hexPublicKey: string): Promise<number> {
@@ -28,7 +29,11 @@ async function getNonce(apiBase: string, hexPublicKey: string): Promise<number> 
 
         const data: { nonce: number } = await nonceResponse.json();
 
-        if (!('nonce' in data) || typeof data.nonce !== 'number') {
+        if (!('nonce' in data)) {
+            console.error('Failed to fetch nonce.', data, hexPublicKey);
+            throw new Error('Failed to load nonce data');
+        }
+        if (typeof data.nonce !== 'number') {
             console.error('Failed to fetch nonce.', data, hexPublicKey);
             throw new Error('Failed to load nonce data');
         }
@@ -130,7 +135,7 @@ async function sendSignedRequest(
     // Handle response
     if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(`API error: ${errorData || response.statusText}`);
+        throw new Error(`API error: ${response.statusText}`);
     }
 
     return response.status === 204 ? undefined : await response.json();
@@ -139,7 +144,7 @@ async function sendSignedRequest(
 async function main() {
     try {
         const daoAddr = process.env.DAO_ID || 'juno17wvyfcmxe6paknzssj64kezgh2h6df6ez9e0wgwr65fvks2l6pmq52ev80'; // DAO ID from env or default
-        const apiKeyValue = process.env.DNAS_API_KEY_VALUE || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdXRob3JpemVkIjp0cnVlLCJleHAiOjE3NzUzODMwNDQsIm5hbWUiOiJteWtleSIsInVzZXIiOiJhdXRoMHw2N2JlNzFiMTlmZDkxMDdmYmNiZGNiNjkifQ.w3IkfYzJI4XrnhCk2lECnt7Oyw3mUhUhmmrPq8pmFKk"; // API key from env or default
+        const apiKeyValue = process.env.DNAS_API_KEY_VALUE || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdXRob3JpemVkIjp0cnVlLCJleHAiOjE3NzU5Njc4MzgsIm5hbWUiOiJ0ZXN0aW5nIiwidXNlciI6ImF1dGgwfDY3YmU3MWIxOWZkOTEwN2ZiY2JkY2I2OSJ9.FH7v2Y7UM9_DzkpyblJLOnliX0xsGS9gULnpUh1a-dA"; // API key from env or default
         // 0. Initialize wallets for testing
         const daoMember1Mnemonic = process.env.DAO_MEMBER1_MNEMONIC || "major garlic pulse siren arm identify all oval dumb tissue moral upon poverty erase judge either awkward metal antenna grid crack pioneer panther bullet"; // Replace with your test mnemonic
         const daoMember2Mnemonic = process.env.DAO_MEMBER2_MNEMONIC || "finish custom duty any destroy sibling zone brain legend fitness subject token high skirt festival define result vacant pepper vast element present direct bright"; // Replace with your test mnemonic
@@ -157,10 +162,9 @@ async function main() {
         console.log("Member 2 address:", member2Address);
 
         // Connect clients
-        const member1Client = await SigningCosmWasmClient.offline(member1Wallet);
+        const member1Client = await SigningCosmWasmClient.connectWithSigner(LOCAL_RPC, member1Wallet);
         const member2Client = await SigningCosmWasmClient.connectWithSigner(LOCAL_RPC, member2Wallet);
         const queryClient = await CosmWasmClient.connect(LOCAL_RPC);
-
         // Get public keys
         const member1Account = await member1Client.getAccount(member1Address);
         const member2Account = await member2Client.getAccount(member2Address);
@@ -175,8 +179,6 @@ async function main() {
 
         console.log("Member 1 public key:", member1HexPublicKey);
         console.log("Member 2 public key:", member2HexPublicKey);
-
-
 
         // Create auth object for the request
         let auth: Auth = {
@@ -249,7 +251,7 @@ async function main() {
         };
 
         // Append each file individually (assuming files array exists in dnas.data)
-        const filePath = process.env.UPLOAD_FILE_PATH || './test-data/tomato.json';
+        const filePath = process.env.UPLOAD_FILE_PATH || './src/test-data/tomato.json';
         const form = new FormData();
         const fileContent = fs.readFileSync(filePath);
         const fileName = path.basename(filePath);

@@ -4,7 +4,6 @@
   "main": "index.ts",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/index.js",
     "dev": "ts-node src/index.ts",
     "watch": "tsc --watch"
   },
@@ -12,9 +11,10 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "@dao-dao/types": "^2.5.0-rc.2",
-    "dotenv": "^16.4.7",
-    "dnas": "file:../"
+    "@cosmjs/cosmwasm-stargate": "^0.33.1",
+    "@cosmjs/proto-signing": "^0.33.1",
+    "dnas": "file:../",
+    "dotenv": "^16.4.7"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

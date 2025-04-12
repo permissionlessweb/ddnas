@@ -1,10 +1,11 @@
 # DAO-DNAS
- A Dao based,decentralized network attached storage. Built as a [CloudflareWorker](https://developers.cloudflare.com/workers)  that allows DAO members to register an API key to use for uploading files with a given set of [Cosmos](https://cosmos.network) wallets / public keys.
+ A Dao based,decentralized network attached storage. Built as a [CloudflareWorker](https://developers.cloudflare.com/workers)  that allows DAO members to register an API key for use, by other DAO members for uploading files with a given set of [Cosmos](https://cosmos.network) wallets / public keys.
 
 
 ## TODO:
 - support for tracking key usage by dao member
 - support for key owner to allow/deny dao members
+- register key key to secret network smart contract
 <!-- - any time a dao member leaves or the api is used, we need to remove their api key if it exists -->
 
 
@@ -59,7 +60,7 @@ npm install
 npm run dev
 ```
 
-### Configuration
+### Configuration:  https://developers.cloudflare.com/d1/get-started/
 
 1. Copy `wrangler.toml.example` to `wrangler.toml`.
 
@@ -67,15 +68,28 @@ npm run dev
 
 ```sh
 npx wrangler d1 create pfpk
+
+# create worker config types 
+npx wrangler types
 ```
 
 3. Update the binding ID in `wrangler.toml`:
+
+Go to https://dash.cloudflare.com to log in to your Cloudflare Dashboard, and select the account and workspace where your database is located by navigating to your D1 database.
+In the dashboard, click on the D1 section in the sidebar, where you will be able to find your database (pfpk in your case) in the list of databases
 
 ```toml
 [[ d1_databases ]]
 binding = "DB"
 database_name = "pfpk"
 database_id = "<REPLACE DB_ID>"
+```
+
+
+4. Configure tables
+
+```sh
+npx wrangler d1 execute pfpk --local --file=./schema.sql
 ```
 
 ## API
