@@ -166,11 +166,13 @@ export type UnregisterPublicKeyResponse = | { success: true } | { error: string 
 
 // Body of making use of dao dnas api key request.
 export type UseDnasKeyRequest = {
-  dnas: RequestBody<{
-    dao: string
-    keyOwner: string
-    files: File[]
-  }>
+  dao: string;
+  keyOwner: string;
+  files: FileMetadata[]; // Only contains metadata, actual files are sent separately
+  auth: {
+    chainId: string;
+    chainBech32Prefix: string;
+  }
 }
 
 // Body of unregister public key response.
@@ -186,6 +188,15 @@ export type UseDnasKeyResponse =
     status?: number;
     details?: Record<string, unknown>;
   };
+
+
+// Metadata about files without including the full content
+export type FileMetadata = {
+  name: string
+  size: number
+  contentType: string
+  hash?: string          // Optional file hash for integrity verification
+}
 
 
 // Body of unregister api keys request.

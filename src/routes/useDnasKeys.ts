@@ -1,76 +1,123 @@
 import { fromBech32, toHex } from "@cosmjs/encoding";
 import { makePublicKey } from "../publicKeys";
-import { AuthorizedRequest, Env, UseDnasKeyRequest, UseDnasKeyResponse } from "../types";
+import { AuthorizedRequest, Env, FileMetadata, UseDnasKeyRequest, UseDnasKeyResponse } from "../types";
 import { getDnasParamms, getIsDaoMember } from "../utils/dao";
 import { getDnasApiKeyValue, getProfileDnasApiKeys, getProfileFromAddressHex } from "../utils";
 import { JackalErrorResponse, JackalSuccessResponse } from "../utils/jackal";
 
 
 export const useDnasKeys = async (
-    {
-        parsedBody: {
-            data: { auth, dnas },
-        },
-        publicKey,
-    }: AuthorizedRequest<UseDnasKeyRequest>,
+    request: AuthorizedRequest<UseDnasKeyRequest>,
     env: Env
 ) => {
+    const {
+        parsedBody: { data },
+        publicKey,
+    } = request;
+
     const respond = (status: number, response: UseDnasKeyResponse) =>
         new Response(JSON.stringify(response), {
             status,
         })
 
+
+    console.log("dnas.data.auth.publicKeyType", data.auth.publicKeyType)
+    console.log("dnas.data.auth.publicKeyHex", data.auth.publicKeyHex)
+
     // Validate public key.
     const dnasChainpublicKey = makePublicKey(
-        dnas.data.auth.publicKeyType,
-        dnas.data.auth.publicKeyHex
+        data.auth.publicKeyType,
+        data.auth.publicKeyHex
     )
-    const signer = dnasChainpublicKey.getBech32Address(dnas.data.auth.chainBech32Prefix)
-    const daoMember = await getIsDaoMember(dnas.data.auth.chainId, signer, dnas.data.dao)
+    const signer = dnasChainpublicKey.getBech32Address(data.auth.chainBech32Prefix)
+    console.log("signer", signer)
+    const daoMember = await getIsDaoMember(data.auth.chainId, signer, data.dao)
     if (!daoMember) {
         return respond(500, {
             error: 'Addr is is not member of DAO: '
         })
     }
 
-    // - dao has widget enabled,
-    const dnsParams = await getDnasParamms(dnas.data.auth.chainId, dnas.data.dao)
+    // confirm dao has widget enabled
+    const dnsParams = await getDnasParamms(data.auth.chainId, data.dao)
+    console.log("DNAS PARAMS FOUND", dnsParams)
 
+    const testQuery = await env.DB.prepare("SELECT 1 as test").first();
+    console.log("DB connection test:", testQuery);
+    
     // get profile for member 
-    const bech32Address = dnas.data.keyOwner.trim()
+    const bech32Address = data.keyOwner.trim()
     const addressHex = toHex(fromBech32(bech32Address).data)
+    console.log("Looking up with addressHex:", addressHex);
     const profile = await getProfileFromAddressHex(env, addressHex)
     if (!profile) {
         return respond(500, {
             error: 'Dao member has not registered a profile for Dnas support.'
         })
     }
+
     const profileDnasApiKeys = getProfileDnasApiKeys(env, profile.id)
+    const apiKeys = await profileDnasApiKeys;
+    console.log("DNAS API KEY FOUND", apiKeys)
 
     // - key owner has registered a key to this dao
-    const thisDnasApi = (await profileDnasApiKeys).find((key) => { key.row.chainId == dnas.data.auth.chainId })
+    const thisDnasApi = (apiKeys).find((key) => { key.row.chainId == data.auth.chainId })
     if (!thisDnasApi) {
         return respond(500, {
             error: 'Dao member has no dnas api key for this DAO.'
         })
     }
+    console.log("THIS DAO SPECIFIC DNAS API KEY FOUND", thisDnasApi)
 
+    //  get the actual api key
     let apiKey = await getDnasApiKeyValue(env, thisDnasApi.row.id)
     if (!apiKey) {
         return respond(500, {
             error: 'Unable  to resolve apiKey.'
         })
     }
+    console.log("API KEY RESOLVED");
 
-    // Append each file individually (assuming files array exists in dnas.data)
-    const form = new FormData();
-    dnas.data.files.forEach((file: File, index: number) => {
-        form.append(`files.${index}`, file, file.name);
-    });
 
-    // Better error handling with async/await
-    const options = { method: 'POST', headers: { Authorization: Buffer.from(apiKey, 'base64').toString('utf-8'), 'Content-Type': 'multipart/form-data' }, };
     try {
+        // Check if request has formData method
+        if (!request.formData) {
+            return respond(400, {
+                error: "Request doesn't support formData. Make sure to send files as multipart/form-data."
+            });
+        }
+        // Get the files from the incoming request
+        const formData = await request.formData();
+
+        // Create a new FormData for the outgoing request
+        const outgoingForm = new FormData();
+
+        // Match files in the form with the metadata provided in the request body
+        for (let i = 0; i < data.files.length; i++) {
+            const metadata = data.files[i];
+            const fileKey = `file_${i}`; // The key used in the incoming request
+            const file = formData.get(fileKey);
+            if (!file || !(file instanceof File)) {
+                return respond(400, {
+                    error: `File ${metadata.name} not found in the request`
+                });
+            }
+
+            // Verify that the metadata matches the actual file
+            if (file.name !== metadata.name || file.size !== metadata.size ||
+                file.type !== metadata.contentType) {
+                console.warn(`File metadata mismatch for ${metadata.name}`);
+                // You may choose to fail or continue with a warning
+            }
+
+            // Add the file to the outgoing request
+            outgoingForm.append(`files.${i}`, file);
+        }
+
+        // Better error handling with async/await
+        const options = { method: 'POST', headers: { Authorization: Buffer.from(apiKey, 'base64').toString('utf-8') }, };
+
+        console.log("got this far, we are hitting the jackal api...")
         const response = await fetch('https://pinapi.jackalprotocol.com/api/v1/files', options);
         if (response.ok) {
             const res: JackalSuccessResponse = await response.json();
@@ -90,12 +137,15 @@ export const useDnasKeys = async (
         // 401 == unauthoirzed
         // 413 == file too large, key limit reached
 
+
     } catch (err) {
         console.error(err);
         return respond(500, {
             error: `Network error: ${err}`
         });
     }
+
+
 }
 
 
