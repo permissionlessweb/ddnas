@@ -1,13 +1,14 @@
-import { DirectSecp256k1HdWallet, OfflineSigner } from "@cosmjs/proto-signing";
+import { OfflineSigner } from "@cosmjs/proto-signing";
 import { SigningCosmWasmClient, CosmWasmClient } from "@cosmjs/cosmwasm-stargate";
 import { fromBase64, toHex } from "@cosmjs/encoding";
 import * as fs from 'fs';
 import * as path from 'path';
 import FormData from 'form-data';
 import dotenv from 'dotenv';
-import { makeSignDoc, OfflineAminoSigner, Secp256k1HdWallet } from "@cosmjs/amino";
-import { RequestBody, Auth, RegisterDnasKeyRequest, ProfileDnasKeyWithValue, UseDnasKeyRequest } from 'dnas/src/types'
+import { makeSignDoc, Secp256k1HdWallet } from "@cosmjs/amino";
+import { RequestBody, Auth, RegisterDnasKeyRequest, ProfileDnasKeyWithValue, UseDnasKeyRequest, FetchProfileResponse, RegisterDnasKeyResponse, FetchedProfile, SignatureOptions, SignedBody } from 'dnas/src/types'
 
+dotenv.config();
 
 // API and RPC configuration
 const LOCAL_RPC = process.env.LOCAL_RPC || "https://juno-rpc.polkachu.com:443";
@@ -21,31 +22,7 @@ async function initializeWallet(mnemonic: string): Promise<OfflineSigner> {
     return wallet as OfflineSigner;
 }
 
-
-// Helper function to get nonce from API
-async function getNonce(apiBase: string, hexPublicKey: string): Promise<number> {
-    try {
-        const nonceResponse = await fetch(`${apiBase}/nonce/${hexPublicKey}`);
-
-        const data: { nonce: number } = await nonceResponse.json();
-
-        if (!('nonce' in data)) {
-            console.error('Failed to fetch nonce.', data, hexPublicKey);
-            throw new Error('Failed to load nonce data');
-        }
-        if (typeof data.nonce !== 'number') {
-            console.error('Failed to fetch nonce.', data, hexPublicKey);
-            throw new Error('Failed to load nonce data');
-        }
-
-        return data.nonce;
-    } catch (error) {
-        console.error('Error fetching nonce:', error);
-        throw error;
-    }
-}
-
-// Function to make authenticated API request
+// Helper function to make authenticated API request
 async function sendSignedRequest(
     apiBase: string,
     endpoint: string,
@@ -53,7 +30,7 @@ async function sendSignedRequest(
     address: string,
     hexPublicKey: string,
     data: any = {},
-    signatureType: string = "API Request"
+    signatureType: string,
 ) {
     // Get offline signer for amino 
     const offlineSignerAmino = wallet as any;
@@ -66,6 +43,7 @@ async function sendSignedRequest(
 
     // Chain ID from the wallet (for Juno)
     const chainId = "juno-1"; // Adjust based on your environment
+    console.log("DATA:", data)
 
     // Check if we're using the new Auth structure
     if (data.dnasApiKeys && Array.isArray(data.dnasApiKeys)) {
@@ -87,10 +65,7 @@ async function sendSignedRequest(
                     chain_id: chainId,
                     account_number: "0",
                     sequence: "0",
-                    fee: {
-                        amount: [],
-                        gas: "0",
-                    },
+                    fee: { amount: [], gas: "0" },
                     msgs: [
                         {
                             type: "sign/MsgSignData",
@@ -112,6 +87,8 @@ async function sendSignedRequest(
         return data;
     }
 
+    console.log("signing offchainAuth with:", signatureType)
+
     // Sign the request
     const signedBody = await signOffChainAuth({
         type: signatureType,
@@ -123,12 +100,12 @@ async function sendSignedRequest(
         offlineSignerAmino,
     });
 
+    console.log("signedBody", signedBody)
+
     // Send request to API
     const response = await fetch(`${apiBase}${endpoint}`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(signedBody),
     });
 
@@ -141,10 +118,118 @@ async function sendSignedRequest(
     return response.status === 204 ? undefined : await response.json();
 }
 
+// Client-side code for sending files with metadata
+async function uploadFilesToDao(
+    wallet: OfflineSigner,
+    hexPublicKey: string,
+    address: string,
+    daoId: string,
+    keyOwner: string,
+    filePaths: string[], // Paths to files for testing
+) {
+    try {
+        // Read the files from disk
+        const fileObjects = filePaths.map(filePath => {
+            const fileName = path.basename(filePath);
+            const fileContent = fs.readFileSync(filePath);
+            const contentType = getContentType(fileName);
+            const fileSize = fs.statSync(filePath).size;
+
+            return {
+                path: filePath,
+                name: fileName,
+                content: fileContent,
+                contentType,
+                size: fileSize
+            };
+        });
+
+        // Create the metadata objects from the file information
+        const fileMetadata = fileObjects.map(file => ({
+            name: file.name,
+            size: file.size,
+            contentType: file.contentType,
+        }));
+
+        // Auth data needed for the request
+        const authData = {
+            type: "DAO DAO DNAS Profile | Use Key",
+            nonce: await getNonce(API_BASE, hexPublicKey),
+            chainId: "juno-1",
+            chainFeeDenom: "ujuno",
+            chainBech32Prefix: "juno",
+            publicKeyType: "/cosmos.crypto.secp256k1.PubKey",
+            publicKeyHex: hexPublicKey
+        };
+
+        // Create the request data
+        const requestData = {
+            dao: daoId,
+            keyOwner: keyOwner,
+            files: fileMetadata,
+            auth: authData
+        };
+
+        // Sign the message
+        const signedBody = await signOffChainAuth({
+            type: authData.type,
+            nonce: authData.nonce,
+            chainId: authData.chainId,
+            address,
+            hexPublicKey,
+            data: requestData,
+            offlineSignerAmino: wallet as any,
+        });
+
+        console.log("Creating FormData for file upload...");
+
+        // Create form data with both the signed message and actual files
+        const formData = new FormData();
+        console.log("Sending file upload request...");
+
+        // Add the signed message as JSON
+        formData.append('message', JSON.stringify(signedBody));
+
+        // Add each file with a predictable key that the server can use
+        fileObjects.forEach((file, index) => {
+            console.log(`Adding file ${index}: ${file.name} (${file.size} bytes)`);
+            formData.append(`file_${index}`, file.content, {
+                filename: file.name,
+                contentType: file.contentType
+            });
+        });
+
+
+
+        // Send the request
+        // First, send the signed message as JSON
+        const messageResponse = await fetch(`${API_BASE}/use-dnas`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(signedBody),
+        });
+
+        if (!messageResponse.ok) {
+            const errorText = await messageResponse.text();
+            console.error(`Upload failed with status ${messageResponse.status}: ${errorText}`);
+            throw new Error(`Upload failed: ${messageResponse.statusText}`);
+        }
+
+        const result = await messageResponse.json();
+        console.log("Upload successful:", result);
+        return result;
+
+    } catch (error) {
+        console.error("Error in uploadFilesToDao:", error);
+        throw error;
+    }
+}
+
 async function main() {
     try {
         const daoAddr = process.env.DAO_ID || 'juno17wvyfcmxe6paknzssj64kezgh2h6df6ez9e0wgwr65fvks2l6pmq52ev80'; // DAO ID from env or default
-        const apiKeyValue = process.env.DNAS_API_KEY_VALUE || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdXRob3JpemVkIjp0cnVlLCJleHAiOjE3NzU5Njc4MzgsIm5hbWUiOiJ0ZXN0aW5nIiwidXNlciI6ImF1dGgwfDY3YmU3MWIxOWZkOTEwN2ZiY2JkY2I2OSJ9.FH7v2Y7UM9_DzkpyblJLOnliX0xsGS9gULnpUh1a-dA"; // API key from env or default
+        const apiKeyValue = process.env.DNAS_API_KEY_VALUE || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdXRob3JpemVkIjp0cnVlLCJleHAiOjE3NzYwMTIwNzQsIm5hbWUiOiJ0ZXkiLCJ1c2VyIjoiYXV0aDB8NjdiZTcxYjE5ZmQ5MTA3ZmJjYmRjYjY5In0.IejPpB8H9m5E4ob8Q113V62IximYl_Uu-RQlULolBxI"; // API key from env or default
+
         // 0. Initialize wallets for testing
         const daoMember1Mnemonic = process.env.DAO_MEMBER1_MNEMONIC || "major garlic pulse siren arm identify all oval dumb tissue moral upon poverty erase judge either awkward metal antenna grid crack pioneer panther bullet"; // Replace with your test mnemonic
         const daoMember2Mnemonic = process.env.DAO_MEMBER2_MNEMONIC || "finish custom duty any destroy sibling zone brain legend fitness subject token high skirt festival define result vacant pepper vast element present direct bright"; // Replace with your test mnemonic
@@ -165,10 +250,10 @@ async function main() {
         const member1Client = await SigningCosmWasmClient.connectWithSigner(LOCAL_RPC, member1Wallet);
         const member2Client = await SigningCosmWasmClient.connectWithSigner(LOCAL_RPC, member2Wallet);
         const queryClient = await CosmWasmClient.connect(LOCAL_RPC);
+
         // Get public keys
         const member1Account = await member1Client.getAccount(member1Address);
         const member2Account = await member2Client.getAccount(member2Address);
-
 
         if (!member1Account?.pubkey || !member2Account?.pubkey) {
             throw new Error("Failed to get account public keys");
@@ -187,7 +272,7 @@ async function main() {
             chainId: "juno-1",
             chainFeeDenom: "ujuno",
             chainBech32Prefix: "juno",
-            publicKeyType: "secp256k1",
+            publicKeyType: "/cosmos.crypto.secp256k1.PubKey",
             publicKeyHex: member1HexPublicKey
         };
 
@@ -218,7 +303,7 @@ async function main() {
 
         // 1. Register DNAS key with dao-member-1 (create profile)
         console.log("\n1. Registering DNAS key for dao-member-1...");
-        const registerResponse = await sendSignedRequest(
+        const registerResponse: RegisterDnasKeyResponse = await sendSignedRequest(
             API_BASE,
             "/register-dnas",
             member1Wallet,
@@ -227,133 +312,43 @@ async function main() {
             registerRequest,
             "DAO DAO DNAS Profile | Register Key"
         );
-        console.log("Registration response:", registerResponse);
+        console.log("Register DNAS key response:", registerResponse);
 
         // 2. Query profile
         console.log("\n2. Querying profile for dao-member-1...");
         const response = await fetch(API_BASE + `/bech32/${member1Account?.address}`)
-        console.log("Registration response:", response);
-        // todo: assert response has profile that has dnas api key saved
+        const res: FetchedProfile = await response.json();
+        console.log("Fetch profile response:", res);
 
+        // 3. Upload test files
+        console.log("\n3. Uploading test files with dao-member-1...");
 
+        const testFilePaths = [
+            path.join(__dirname, 'test-data', 'test-file1.txt'),
+            path.join(__dirname, 'test-data', 'tomato.json'),
+        ];
 
-        // 3. Save file with dao-member-1
-        console.log("\n4. Saving file with dao-member-1...");
-        // Create auth object for the request
-        auth = {
-            type: "DAO DAO DNAS Profile | Use Key",
-            nonce: await getNonce(API_BASE, member1HexPublicKey),
-            chainId: "juno-1",
-            chainFeeDenom: "ujuno",
-            chainBech32Prefix: "juno",
-            publicKeyType: "secp256k1",
-            publicKeyHex: member1HexPublicKey
-        };
-
-        // Append each file individually (assuming files array exists in dnas.data)
-        const filePath = process.env.UPLOAD_FILE_PATH || './src/test-data/tomato.json';
-        const form = new FormData();
-        const fileContent = fs.readFileSync(filePath);
-        const fileName = path.basename(filePath);
-
-        // Create a File object (for the typed request)
-        // In browser environments this would be easier, but in Node we need to create a File-like object
-        const fileObj = {
-            name: fileName,
-            type: getContentType(fileName),
-            size: fileContent.length,
-            lastModified: Date.now(),
-            arrayBuffer: async () => fileContent.buffer,
-            slice: () => new Blob([fileContent]),
-            stream: () => new ReadableStream(),
-            text: async () => fileContent.toString('utf-8'),
-        } as unknown as File;
-        // Append file to FormData
-        form.append('file', fileContent, {
-            filename: fileName,
-            contentType: getContentType(fileName)
-        });
-
-        // Prepare the full register request
-        const useDnsKeyRequest: UseDnasKeyRequest = {
-            dnas: {
-                data: {
-                    auth,
-                    dao: daoAddr,
-                    keyOwner: member1Account.address,
-                    files: [fileObj],
-                },
-                signature: ""
-
-            }
-        };
-
-        const saveFileResponse = await sendSignedRequest(
-            API_BASE,
-            "/use-dnas",
+        // Upload files using the DAO member's credentials
+        const uploadResponse = await uploadFilesToDao(
             member1Wallet,
-            member1Address,
             member1HexPublicKey,
-            useDnsKeyRequest,
-            "DAO DAO DNAS Profile | Save File"
+            member1Address,
+            daoAddr,
+            member1Address,
+            testFilePaths
         );
-        console.log("Save file response:", saveFileResponse);
 
-        // Additional test: Query files for dao-member-1
-        console.log("\n5. Querying files for dao-member-1...");
+        console.log("File upload response:", uploadResponse);
 
+        // 4. Query files to verify upload
+        console.log("\n4. Querying files for dao-member-1...");
+        // Add file query implementation if your API supports it
 
         console.log("\nAll tests completed successfully!");
 
     } catch (error) {
         console.error("Error in main:", error);
     }
-}
-
-main().catch(console.error);
-
-
-
-
-type ResolvedDnasApiKey = {
-    id: number;
-    profileId: number;
-    type: string;
-    keyMetadata: string;
-    signatureLifespan: string
-    uploadLimit: string
-};
-
-
-
-
-
-
-export type SignedBody<
-    Data extends Record<string, unknown> | undefined = Record<string, any>
-> = {
-    data: {
-        auth: Auth
-    } & Data
-    signature: string
-}
-
-
-export type SignatureOptions<
-    Data extends Record<string, unknown> | undefined = Record<string, any>
-> = {
-    type: string
-    nonce: number
-    chainId: string
-    address: string
-    hexPublicKey: string
-    data: Data
-    offlineSignerAmino: OfflineAminoSigner
-    /**
-     * If true, don't sign the message and leave the signature field blank.
-     * Defaults to false.
-     */
-    generateOnly?: boolean
 }
 
 // Helper function to determine content type based on file extension
@@ -380,6 +375,28 @@ function getContentType(fileName: string): string {
     return contentTypes[extension] || 'application/octet-stream';
 }
 
+// Helper function to get nonce from API
+async function getNonce(apiBase: string, hexPublicKey: string): Promise<number> {
+    try {
+        const nonceResponse = await fetch(`${apiBase}/nonce/${hexPublicKey}`);
+
+        const data: { nonce: number } = await nonceResponse.json();
+
+        if (!('nonce' in data)) {
+            console.error('Failed to fetch nonce.', data, hexPublicKey);
+            throw new Error('Failed to load nonce data');
+        }
+        if (typeof data.nonce !== 'number') {
+            console.error('Failed to fetch nonce.', data, hexPublicKey);
+            throw new Error('Failed to load nonce data');
+        }
+
+        return data.nonce;
+    } catch (error) {
+        console.error('Error fetching nonce:', error);
+        throw error;
+    }
+}
 
 export const signOffChainAuth = async <
     Data extends Record<string, unknown> | undefined = Record<string, any>
@@ -402,7 +419,7 @@ export const signOffChainAuth = async <
             chainId,
             chainFeeDenom: "ujuno", // getNativeTokenForChainId(chainId).denomOrAddress,
             chainBech32Prefix: "juno",
-            publicKeyType: "secp256k1", // getPublicKeyTypeForChain(chainId),
+            publicKeyType: "/cosmos.crypto.secp256k1.PubKey",//  getPublicKeyTypeForChain(chainId),
             publicKeyHex: hexPublicKey,
             // Backwards compatible.
             publicKey: hexPublicKey,
@@ -441,3 +458,5 @@ export const signOffChainAuth = async <
 
     return signedBody
 }
+
+main().catch(console.error);
