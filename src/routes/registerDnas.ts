@@ -43,6 +43,7 @@ export const registerDnasKeys = async (
         )
         // If no profile exists, create one.
         if (!_profile) {
+            console.log("Saving with addressHex:", publicKey.addressHex)
             _profile = await saveProfile(
                 env,
                 publicKey,
@@ -56,9 +57,11 @@ export const registerDnasKeys = async (
             )
             // will save api keys to profile after validate & increment nonce
         }
+        // Log after successful DB operation  
+        console.log("Profile saved successfully:", _profile);
         profile = _profile
     } catch (err) {
-        console.error('Profile retrieval', err)
+        console.error("Error saving profile:", err);
         return respond(500, {
             error:
                 'Failed to retrieve existing profile: ' +
