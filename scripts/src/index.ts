@@ -5,14 +5,18 @@ import * as fs from 'fs';
 import * as path from 'path';
 import FormData from 'form-data';
 import dotenv from 'dotenv';
-import { makeSignDoc, Secp256k1HdWallet } from "@cosmjs/amino";
-import { RequestBody, Auth, RegisterDnasKeyRequest, ProfileDnasKeyWithValue, UseDnasKeyRequest, FetchProfileResponse, RegisterDnasKeyResponse, FetchedProfile, SignatureOptions, SignedBody } from 'dnas/src/types'
+import { makeSignDoc, Secp256k1HdWallet, StdSignature } from "@cosmjs/amino";
+import { RequestBody, Auth, RegisterDnasKeyRequest, ProfileDnasKeyWithValue, UseDnasKeyRequest, FetchProfileResponse, RegisterDnasKeyResponse, FetchedProfile, SignatureOptions, SignedBody, SignMessageParams } from 'dnas/src/types'
+
 
 dotenv.config();
 
 // API and RPC configuration
 const LOCAL_RPC = process.env.LOCAL_RPC || "https://juno-rpc.polkachu.com:443";
 const API_BASE = process.env.API_BASE || "http://localhost:58229"; // Your local API server endpoint
+const chainFeeDenom = "ujuno"
+const chainBech32Prefix = "juno"
+const chainId = "juno-1"
 
 // Helper function to initialize wallet from mnemonic
 async function initializeWallet(mnemonic: string): Promise<OfflineSigner> {
@@ -20,102 +24,6 @@ async function initializeWallet(mnemonic: string): Promise<OfflineSigner> {
         prefix: "juno", // Change to your chain's prefix if needed
     });
     return wallet as OfflineSigner;
-}
-
-// Helper function to make authenticated API request
-async function sendSignedRequest(
-    apiBase: string,
-    endpoint: string,
-    wallet: OfflineSigner,
-    address: string,
-    hexPublicKey: string,
-    data: any = {},
-    signatureType: string,
-) {
-    // Get offline signer for amino 
-    const offlineSignerAmino = wallet as any;
-    if (!offlineSignerAmino || !('signAmino' in offlineSignerAmino)) {
-        throw new Error('Wallet does not support amino signing');
-    }
-
-    // Get nonce from API
-    const nonce = await getNonce(apiBase, hexPublicKey);
-
-    // Chain ID from the wallet (for Juno)
-    const chainId = "juno-1"; // Adjust based on your environment
-    console.log("DATA:", data)
-
-    // Check if we're using the new Auth structure
-    if (data.dnasApiKeys && Array.isArray(data.dnasApiKeys)) {
-        // For DNAS key registration structure
-        for (const apiKey of data.dnasApiKeys) {
-            const messageToSign = {
-                type: signatureType,
-                nonce: apiKey.data.auth.nonce,
-                chain_id: apiKey.data.auth.chainId,
-                address,
-                public_key: hexPublicKey,
-                data: apiKey.data
-            };
-
-            // Sign the message
-            const { signature } = await offlineSignerAmino.signAmino(
-                address,
-                {
-                    chain_id: chainId,
-                    account_number: "0",
-                    sequence: "0",
-                    fee: { amount: [], gas: "0" },
-                    msgs: [
-                        {
-                            type: "sign/MsgSignData",
-                            value: {
-                                signer: address,
-                                data: Buffer.from(JSON.stringify(messageToSign)).toString("base64"),
-                            },
-                        },
-                    ],
-                    memo: "",
-                }
-            );
-
-            // Assign the signature
-            apiKey.signature = signature.signature;
-        }
-
-        // Return the modified data without additional wrapping
-        return data;
-    }
-
-    console.log("signing offchainAuth with:", signatureType)
-
-    // Sign the request
-    const signedBody = await signOffChainAuth({
-        type: signatureType,
-        nonce,
-        chainId,
-        address,
-        hexPublicKey,
-        data,
-        offlineSignerAmino,
-    });
-
-    console.log("signedBody", signedBody)
-
-    // Send request to API
-    const response = await fetch(`${apiBase}${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(signedBody),
-    });
-
-    // Handle response
-    if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(`API error: ${response.statusText}`);
-    }
-
-    return response.status === 204 ? undefined : await response.json();
 }
 
 // Client-side code for sending files with metadata
@@ -156,8 +64,8 @@ async function uploadFilesToDao(
             type: "DAO DAO DNAS Profile | Use Key",
             nonce: await getNonce(API_BASE, hexPublicKey),
             chainId: "juno-1",
-            chainFeeDenom: "ujuno",
-            chainBech32Prefix: "juno",
+            chainFeeDenom,
+            chainBech32Prefix,
             publicKeyType: "/cosmos.crypto.secp256k1.PubKey",
             publicKeyHex: hexPublicKey
         };
@@ -199,8 +107,6 @@ async function uploadFilesToDao(
             });
         });
 
-
-
         // Send the request
         // First, send the signed message as JSON
         const messageResponse = await fetch(`${API_BASE}/use-dnas`, {
@@ -224,6 +130,117 @@ async function uploadFilesToDao(
         throw error;
     }
 }
+
+// New function to register a profile (public key)
+async function registerProfile(
+    wallet: OfflineSigner,
+    address: string,
+    hexPublicKey: string,
+) {
+    try {
+        // Get offline signer for amino 
+        const offlineSignerAmino = wallet as any;
+        if (!offlineSignerAmino || !('signAmino' in offlineSignerAmino)) {
+            throw new Error('Wallet does not support amino signing');
+        }
+
+        // Get nonce from API
+        const nonce = await getNonce(API_BASE, hexPublicKey);
+        const chainId = "juno-1";
+
+        // Create auth object for the request
+        const auth: Auth = {
+            type: "DAO DAO DNAS Profile | Register Profile",  // Changed to correct type
+            nonce,
+            chainId,
+            chainFeeDenom,
+            chainBech32Prefix,
+            publicKeyType: "/cosmos.crypto.secp256k1.PubKey",
+            publicKeyHex: hexPublicKey
+        };
+
+        // Create public key auth
+        const publicKeyAuth: Auth = {
+            type: "DAO DAO DNAS Profile | Register Public Key",
+            nonce,
+            chainId,
+            chainFeeDenom,
+            chainBech32Prefix,
+            publicKeyType: "/cosmos.crypto.secp256k1.PubKey",
+            publicKeyHex: hexPublicKey
+        };
+
+        // Create the public key data structure
+        const publicKeyData = {
+            data: {
+                allow: publicKeyAuth.publicKeyHex,
+                chainIds: [chainId],
+                auth: publicKeyAuth
+            },
+            signature: "" // Will be filled later
+        };
+
+        // Sign the inner public key data first
+        const messageToSign = {
+            type: publicKeyAuth.type,
+            nonce: publicKeyAuth.nonce,
+            chain_id: publicKeyAuth.chainId,
+            address,
+            public_key: hexPublicKey,
+            data: publicKeyData.data
+        };
+
+        // Sign the message for public key
+        const { signature } = await signMessageAmino({
+            offlineSignerAmino,
+            address,
+            chainId,
+            messageToSign,
+        });
+
+        // Assign the signature to the public key data
+        publicKeyData.signature = signature.signature;
+
+        // Prepare the request structure for public key registration
+        const publicKeyRequestData = {
+            publicKeys: [publicKeyData]
+        };
+
+        // Now sign the entire request
+        const signedBody = await signOffChainAuth({
+            type: auth.type,
+            nonce: auth.nonce,
+            chainId: auth.chainId,
+            address,
+            hexPublicKey,
+            data: publicKeyRequestData,
+            offlineSignerAmino,
+        });
+
+        console.log("Sending profile registration request...");
+        console.log("Request payload:", JSON.stringify(signedBody, null, 2));
+
+        // Send request to API
+        const response = await fetch(`${API_BASE}/register`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(signedBody),
+        });
+
+        // Handle response
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`Profile registration failed with status ${response.status}: ${errorText}`);
+            throw new Error(`API error: ${response.status} - ${response.statusText}`);
+        }
+
+        return response.status === 204 ? { success: true } : await response.json();
+    } catch (error) {
+        console.error("Error in registerProfile:", error);
+        throw error;
+    }
+}
+
 
 async function main() {
     try {
@@ -265,7 +282,16 @@ async function main() {
         console.log("Member 1 public key:", member1HexPublicKey);
         console.log("Member 2 public key:", member2HexPublicKey);
 
-        // Create auth object for the request
+        // 1. Register profile (public key) for dao-member-1 
+        console.log("\n1. Registering profile for dao-member-1...");
+        const profileResponse = await registerProfile(
+            member1Wallet,
+            member1Address,
+            member1HexPublicKey,
+        );
+        console.log("Register profile response:", profileResponse);
+
+        // 2. Create auth object for the DNAS key request
         let auth: Auth = {
             type: "DAO DAO DNAS Profile | Register Key",
             nonce: await getNonce(API_BASE, member1HexPublicKey),
@@ -276,7 +302,7 @@ async function main() {
             publicKeyHex: member1HexPublicKey
         };
 
-        // Create DNAS key with necessary fields
+        // 3. Create DNAS key with necessary fields
         const dnasKey: ProfileDnasKeyWithValue = {
             id: 0, // Will be assigned by the server
             profileId: 0, // Will be assigned by the server
@@ -287,41 +313,87 @@ async function main() {
             apiKeyValue: Buffer.from(apiKeyValue).toString("base64") // Example API key value
         };
 
-        // Prepare the full register request
-        const registerRequest: RegisterDnasKeyRequest = {
-            dnasApiKeys: [
-                {
-                    data: {
-                        auth,
-                        dao: daoAddr,
-                        dnas: dnasKey
-                    },
-                    signature: "" // Will be filled by signOffChainAuth
-                }
-            ]
+        // 4. Prepare the full register request - this needs special handling
+        const nonce = await getNonce(API_BASE, member1HexPublicKey);
+        auth = {
+            type: "DAO DAO DNAS Profile | Register Key",
+            nonce,
+            chainId: "juno-1",
+            chainFeeDenom: "ujuno",
+            chainBech32Prefix: "juno",
+            publicKeyType: "/cosmos.crypto.secp256k1.PubKey",
+            publicKeyHex: member1HexPublicKey
         };
 
-        // 1. Register DNAS key with dao-member-1 (create profile)
-        console.log("\n1. Registering DNAS key for dao-member-1...");
-        const registerResponse: RegisterDnasKeyResponse = await sendSignedRequest(
-            API_BASE,
-            "/register-dnas",
-            member1Wallet,
-            member1Address,
-            member1HexPublicKey,
-            registerRequest,
-            "DAO DAO DNAS Profile | Register Key"
-        );
+
+        // Create the data structure for the DNAS key
+        const dnasKeyData = {
+            data: {
+                auth,
+                dao: daoAddr,
+                dnas: dnasKey
+            },
+            signature: "" // Will be filled later
+        };
+
+        // Sign the DNAS key data
+        const messageToSign = {
+            type: auth.type,
+            nonce: auth.nonce,
+            chain_id: auth.chainId,
+            address: member1Address,
+            public_key: member1HexPublicKey,
+            data: dnasKeyData.data
+        };
+
+        // 5. Register DNAS key with dao-member-1
+        console.log("\n2. Registering DNAS key for dao-member-1...");
+
+        // Sign the message for public key
+
+        // Get offline signer for amino
+        const { signature } = await signMessageAmino({
+            offlineSignerAmino: member1Wallet as any,
+            address: member1Address,
+            chainId,
+            messageToSign,
+        });
+        // Assign the signature
+        dnasKeyData.signature = signature.signature;
+
+        // Create the request with the signed DNAS key data
+        const registerRequest: RegisterDnasKeyRequest = {
+            dnasApiKeys: [dnasKeyData]
+        };
+
+        // 5. Register DNAS key with dao-member-1
+        console.log("\n2. Registering DNAS key for dao-member-1...");
+        console.log("DNAS key registration payload:", JSON.stringify(registerRequest, null, 2));
+        // Send the request directly (not using sendSignedRequest since we already signed the inner data)
+        const registerResponse = await fetch(`${API_BASE}/register-dnas`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(registerRequest),
+        });
+
+        if (!registerResponse.ok) {
+            const errorText = await registerResponse.text();
+            console.error(`DNAS key registration failed with status ${registerResponse.status}: ${errorText}`);
+            throw new Error(`API error: ${registerResponse.status} - ${registerResponse.statusText}`);
+        }
+
+        const registerResult = await registerResponse.json();
         console.log("Register DNAS key response:", registerResponse);
 
-        // 2. Query profile
-        console.log("\n2. Querying profile for dao-member-1...");
-        const response = await fetch(API_BASE + `/bech32/${member1Account?.address}`)
+
+        // 6. Query profile
+        console.log("\n3. Querying profile for dao-member-1...");
+        const response = await fetch(API_BASE + `/address/${member1Account?.address}`)
         const res: FetchedProfile = await response.json();
         console.log("Fetch profile response:", res);
 
-        // 3. Upload test files
-        console.log("\n3. Uploading test files with dao-member-1...");
+        // 7. Upload test files
+        console.log("\n4. Uploading test files with dao-member-1...");
 
         const testFilePaths = [
             path.join(__dirname, 'test-data', 'test-file1.txt'),
@@ -340,8 +412,8 @@ async function main() {
 
         console.log("File upload response:", uploadResponse);
 
-        // 4. Query files to verify upload
-        console.log("\n4. Querying files for dao-member-1...");
+        // 8. Query files to verify upload
+        console.log("\n5. Querying files for dao-member-1...");
         // Add file query implementation if your API supports it
 
         console.log("\nAll tests completed successfully!");
@@ -417,8 +489,8 @@ export const signOffChainAuth = async <
             type,
             nonce,
             chainId,
-            chainFeeDenom: "ujuno", // getNativeTokenForChainId(chainId).denomOrAddress,
-            chainBech32Prefix: "juno",
+            chainFeeDenom,
+            chainBech32Prefix,
             publicKeyType: "/cosmos.crypto.secp256k1.PubKey",//  getPublicKeyTypeForChain(chainId),
             publicKeyHex: hexPublicKey,
             // Backwards compatible.
@@ -457,6 +529,45 @@ export const signOffChainAuth = async <
     }
 
     return signedBody
+}
+
+/**
+ * Signs a message using amino encoding
+ * @param params - Parameters required for signing
+ * @returns Promise containing the signature
+ */
+async function signMessageAmino({
+    offlineSignerAmino,
+    address,
+    chainId,
+    messageToSign,
+
+}: SignMessageParams): Promise<{ signature: StdSignature }> {
+    try {
+        const { signature } = await offlineSignerAmino.signAmino(
+            address,
+            {
+                chain_id: chainId,
+                account_number: "0",
+                sequence: "0",
+                fee: { amount: [], gas: "0" },
+                msgs: [
+                    {
+                        type: "sign/MsgSignData",
+                        value: {
+                            signer: address,
+                            data: Buffer.from(JSON.stringify(messageToSign)).toString("base64"),
+                        },
+                    },
+                ],
+                memo: "",
+            }
+        );
+
+        return { signature };
+    } catch (error) {
+        throw new Error(`Failed to sign message: ${error}`);
+    }
 }
 
 main().catch(console.error);

@@ -147,7 +147,7 @@ export type RegisterPublicKeyRequest = {
 export type RegisterDnasKeyRequest = {
   dnasApiKeys: RequestBody<{
     dao: string
-    dnas: ProfileDnasKeyWithValue
+    dnas: ProfileDnasKeyWithoutIds
   }>[]
 }
 
@@ -247,6 +247,8 @@ export type AuthorizedRequest<
 export type ProfileDnasKeyWithHash = ResolvedDnasApiKey & { apiKeyHash: string }
 /// Contains the base64 encoded api key value
 export type ProfileDnasKeyWithValue = ResolvedDnasApiKey & { apiKeyValue: string }
+
+export type ProfileDnasKeyWithoutIds = Omit<ProfileDnasKeyWithValue, 'id' | 'profileId'>;
 
 /**
  * Profile database row.
@@ -390,4 +392,17 @@ export type SignatureOptions<
    * Defaults to false.
    */
   generateOnly?: boolean
+}
+
+export interface SignMessageParams {
+  offlineSignerAmino: OfflineAminoSigner;
+  address: string;
+  chainId: string;
+  messageToSign: unknown;
+  accountNumber?: string;
+  sequence?: string;
+  fee?: {
+      amount: unknown[];
+      gas: string;
+  };
 }

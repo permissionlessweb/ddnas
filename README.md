@@ -5,7 +5,7 @@
 ## TODO:
 - support for tracking key usage by dao member
 - support for key owner to allow/deny dao members
-- register key key to secret network smart contract
+- register key key to secret network smart contract (hash of key is registered, signed by dao  member when used to  access from secret contract state).
 <!-- - any time a dao member leaves or the api is used, we need to remove their api key if it exists -->
 
 
