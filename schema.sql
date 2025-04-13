@@ -102,11 +102,10 @@ CREATE TABLE dnas_api_keys (
 DROP TABLE IF EXISTS api_keys;
 CREATE TABLE api_keys (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    dnasKeyId INTEGER NOT NULL,
+    dnasKeyId INTEGER NOT NULL UNIQUE, -- Added UNIQUE constraint
     apiKeyValue VARBINARY NOT NULL,
     createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    -- Foreign key constraint linking to dnas_api_keys
     CONSTRAINT fk_dnas_api_keys FOREIGN KEY (dnasKeyId) REFERENCES dnas_api_keys (id) ON DELETE CASCADE
 );
 -- Create an index on apiKeyHash for faster lookups
@@ -116,16 +115,6 @@ CREATE INDEX idx_apiKeyHash ON dnas_api_keys (apiKeyHash);
 CREATE INDEX idx_chainId ON dnas_api_keys (chainId);
 CREATE INDEX idx_daoAddr ON dnas_api_keys (daoAddr);
 CREATE INDEX idx_profile_chain_dao_by_keys ON dnas_api_keys (profileId, chainId, daoAddr);
-
--- Create a trigger to compute and store the SHA-256 hash of the API key
-CREATE TRIGGER tr_insert_apiKeyHash
-AFTER INSERT ON api_keys
-FOR EACH ROW
-BEGIN
-    UPDATE dnas_api_keys
-    SET apiKeyHash = SHA2(NEW.apiKeyValue, 256)
-    WHERE id = NEW.dnasKeyId;
-END;
 
 -- Create index on encryptedKey for faster lookups
 CREATE INDEX IF NOT EXISTS idx_apiKeyValue ON api_keys (apiKeyValue);

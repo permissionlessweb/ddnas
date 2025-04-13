@@ -71,7 +71,6 @@ export type FetchedProfile = {
 * Dnas key api & limit. no hash or key value
 */
 export type ResolvedDnasApiKey = {
-  id: number;
   profileId: number;
   type: string;
   keyMetadata: string;

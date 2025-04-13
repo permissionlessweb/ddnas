@@ -3,7 +3,7 @@
 <!-- Author: Returniflost, Discover Decentralization DAO DATE: 25/03/25 -->
 
 ## Project Overview
-This project involves creating UX for secure file uploads to storage providers on jackal, via an Jackal Pin API. The worker will verify a private key signature hash required in any request to from a DAO member to use of  of the api keys registered. DAOs must first register to its storage items a json encoded with its desired bounded parameters for maximum file size usage & lifespan of signatures, while making use of upload keys. Shared DAO keys are registered to this worker only by DAO members, and custom parameters within DAOs desired bounds.
+This project involves creating UX for secure file uploads to storage providers on jackal, via an Jackal Pin API. The worker will verify a private key signature hash required in any request to from a DAO member to use of the api keys registered. DAOs must first register to its storage items a json encoded with its desired bounded parameters for maximum file size usage & lifespan of signatures, while making use of upload keys. Shared DAO keys are registered to this worker only by DAO members, and custom parameters within DAOs desired bounds.
 
 ## High-Level Requirements
 1. DAO-DAO UI widget

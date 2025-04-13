@@ -67,10 +67,10 @@ npm run dev
 2. Create D1 database for production:
 
 ```sh
-npx wrangler d1 create pfpk
-
 # create worker config types 
 npx wrangler types
+# create db
+npx wrangler d1 create pfpk
 ```
 
 3. Update the binding ID in `wrangler.toml`:
@@ -84,7 +84,6 @@ binding = "DB"
 database_name = "pfpk"
 database_id = "<REPLACE DB_ID>"
 ```
-
 
 4. Configure tables
 

@@ -14,6 +14,7 @@ import {
   UpdateProfile,
 } from '../types'
 import { SHA256 } from 'crypto-js'
+import { createHash } from 'crypto'
 
 /**
  * Get the profile for a given name.
@@ -488,6 +489,10 @@ export const addDnsProfileApiKey = async (
         throw new KnownError(400, `Invalid DAO format: ${dao}. Expected "chainId:daoAddr".`);
       }
 
+      const apiKeyHash = createHash('sha256')
+        .update(apiKey.apiKeyValue)
+        .digest('hex');
+
       // Insert new DNAS API key record
       const dnasApiKeyRow = await env.DB.prepare(`
         INSERT INTO dnas_api_keys (
@@ -496,16 +501,18 @@ export const addDnsProfileApiKey = async (
           keyMetadata, 
           signatureLifespan,
           uploadLimit,
+          apiKeyHash,
           chainId,
           daoAddr
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         ON CONFLICT (profileId, chainId, daoAddr) 
         DO UPDATE SET
           type = $2,
           keyMetadata = $3,
           signatureLifespan = $4,
           uploadLimit = $5,
+          apiKeyHash = $6,
           updatedAt = CURRENT_TIMESTAMP
         RETURNING id
       `).bind(
@@ -514,6 +521,7 @@ export const addDnsProfileApiKey = async (
         apiKey.keyMetadata || JSON.stringify({}),
         apiKey.signatureLifespan || null,
         apiKey.uploadLimit || null,
+        apiKeyHash,
         chainId,
         daoAddr
       ).first<{ id: number }>();

@@ -63,6 +63,7 @@ export const verifyRequestBodyAndGetPublicKey = async (
     body.data.auth.publicKeyType,
     body.data.auth.publicKeyHex
   )
+  console.log("publicKeyformed to be verified:", publicKey)
 
   // Validate signature.
   if (!(await verifySignature(publicKey, body))) {

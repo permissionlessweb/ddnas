@@ -36,6 +36,7 @@ export const registerDnasKeys = async (
 
     // Find or create profile.
     let profile: DbRowProfile
+    console.log("FETCHING PROFILE VIA publicKey.hex:", publicKey.hex)
     try {
         let _profile: DbRowProfile | null = await getProfileFromPublicKeyHex(
             env,
@@ -43,7 +44,7 @@ export const registerDnasKeys = async (
         )
         // If no profile exists, create one.
         if (!_profile) {
-            console.log("Saving with addressHex:", publicKey.addressHex)
+            console.log("NO PROFILE FOUND, SAVING NEW ONE:", publicKey.addressHex)
             _profile = await saveProfile(
                 env,
                 publicKey,
@@ -100,7 +101,7 @@ export const registerDnasKeys = async (
                 // Initialize the entry if it doesn't exist
                 if (!acc[pubKeyKey]) {
                     acc[pubKeyKey] = {
-                        apiKeyValue: data.dnas,
+                        apiKeyValue: { profileId: profile.id, ...data.dnas },
                         daos: new Set<string>()
                     };
                 }
