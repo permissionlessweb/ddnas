@@ -714,7 +714,7 @@ export const getDnasApiKeyValue = async (
   try {
     // Query the api_keys table to get the actual API key value
     const apiKeyRow = await env.DB.prepare(`
-      SELECT encryptedKey as apiKeyValue
+      SELECT apiKeyValue
       FROM api_keys
       WHERE dnasKeyId = $1
       ORDER BY updatedAt DESC

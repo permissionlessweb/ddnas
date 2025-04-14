@@ -167,7 +167,7 @@ export type UnregisterPublicKeyResponse = | { success: true } | { error: string 
 export type UseDnasKeyRequest = {
   dao: string;
   keyOwner: string;
-  files: FileMetadata[]; // Only contains metadata, actual files are sent separately
+  files: File[];
   auth: {
     chainId: string;
     chainBech32Prefix: string;

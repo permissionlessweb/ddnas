@@ -6,7 +6,7 @@ import * as path from 'path';
 import FormData from 'form-data';
 import dotenv from 'dotenv';
 import { makeSignDoc, Secp256k1HdWallet, StdSignature } from "@cosmjs/amino";
-import { RequestBody, Auth, RegisterDnasKeyRequest, ProfileDnasKeyWithValue, UseDnasKeyRequest, FetchProfileResponse, RegisterDnasKeyResponse, FetchedProfile, SignatureOptions, SignedBody, SignMessageParams } from 'dnas/src/types'
+import { RequestBody, Auth, RegisterDnasKeyRequest, ProfileDnasKeyWithValue, UseDnasKeyRequest, FetchProfileResponse, RegisterDnasKeyResponse, FetchedProfile, SignatureOptions, SignedBody, SignMessageParams, ProfileDnasKeyWithoutIds } from 'dnas/src/types'
 
 
 dotenv.config();
@@ -17,6 +17,7 @@ const API_BASE = process.env.API_BASE || "http://localhost:58229"; // Your local
 const chainFeeDenom = "ujuno"
 const chainBech32Prefix = "juno"
 const chainId = "juno-1"
+const publicKeyType = "/cosmos.crypto.secp256k1.PubKey";
 
 // Helper function to initialize wallet from mnemonic
 async function initializeWallet(mnemonic: string): Promise<OfflineSigner> {
@@ -111,8 +112,7 @@ async function uploadFilesToDao(
         // First, send the signed message as JSON
         const messageResponse = await fetch(`${API_BASE}/use-dnas`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(signedBody),
+            body: formData as unknown as BodyInit
         });
 
         if (!messageResponse.ok) {
@@ -130,7 +130,6 @@ async function uploadFilesToDao(
         throw error;
     }
 }
-
 // New function to register a profile (public key)
 async function registerProfile(
     wallet: OfflineSigner,
@@ -146,29 +145,9 @@ async function registerProfile(
 
         // Get nonce from API
         const nonce = await getNonce(API_BASE, hexPublicKey);
-        const chainId = "juno-1";
-
-        // Create auth object for the request
-        const auth: Auth = {
-            type: "DAO DAO DNAS Profile | Register Profile",  // Changed to correct type
-            nonce,
-            chainId,
-            chainFeeDenom,
-            chainBech32Prefix,
-            publicKeyType: "/cosmos.crypto.secp256k1.PubKey",
-            publicKeyHex: hexPublicKey
-        };
 
         // Create public key auth
-        const publicKeyAuth: Auth = {
-            type: "DAO DAO DNAS Profile | Register Public Key",
-            nonce,
-            chainId,
-            chainFeeDenom,
-            chainBech32Prefix,
-            publicKeyType: "/cosmos.crypto.secp256k1.PubKey",
-            publicKeyHex: hexPublicKey
-        };
+        const publicKeyAuth = createAuth("DAO DAO DNAS Profile | Register Profile", nonce, hexPublicKey)
 
         // Create the public key data structure
         const publicKeyData = {
@@ -208,9 +187,9 @@ async function registerProfile(
 
         // Now sign the entire request
         const signedBody = await signOffChainAuth({
-            type: auth.type,
-            nonce: auth.nonce,
-            chainId: auth.chainId,
+            type: publicKeyAuth.type,
+            nonce: publicKeyAuth.nonce,
+            chainId: publicKeyAuth.chainId,
             address,
             hexPublicKey,
             data: publicKeyRequestData,
@@ -245,7 +224,7 @@ async function registerProfile(
 async function main() {
     try {
         const daoAddr = process.env.DAO_ID || 'juno17wvyfcmxe6paknzssj64kezgh2h6df6ez9e0wgwr65fvks2l6pmq52ev80'; // DAO ID from env or default
-        const apiKeyValue = process.env.DNAS_API_KEY_VALUE || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdXRob3JpemVkIjp0cnVlLCJleHAiOjE3NzYwMTIwNzQsIm5hbWUiOiJ0ZXkiLCJ1c2VyIjoiYXV0aDB8NjdiZTcxYjE5ZmQ5MTA3ZmJjYmRjYjY5In0.IejPpB8H9m5E4ob8Q113V62IximYl_Uu-RQlULolBxI"; // API key from env or default
+        const apiKeyValue = process.env.DNAS_API_KEY_VALUE || ""; // API key from env or default
 
         // 0. Initialize wallets for testing
         const daoMember1Mnemonic = process.env.DAO_MEMBER1_MNEMONIC || "major garlic pulse siren arm identify all oval dumb tissue moral upon poverty erase judge either awkward metal antenna grid crack pioneer panther bullet"; // Replace with your test mnemonic
@@ -289,87 +268,71 @@ async function main() {
             member1Address,
             member1HexPublicKey,
         );
-        console.log("Register profile response:", profileResponse);
+        console.log("Register profile response:", profileResponse)
 
-        // 2. Create auth object for the DNAS key request
-        let auth: Auth = {
-            type: "DAO DAO DNAS Profile | Register Key",
-            nonce: await getNonce(API_BASE, member1HexPublicKey),
-            chainId: "juno-1",
-            chainFeeDenom: "ujuno",
-            chainBech32Prefix: "juno",
-            publicKeyType: "/cosmos.crypto.secp256k1.PubKey",
-            publicKeyHex: member1HexPublicKey
-        };
+        // 2. Get fetch saved profile for profile id
+        console.log("\n2. Querying profile for dao-member-1...");
+        const response = await fetch(API_BASE + `/${member1HexPublicKey}`)
+        const fetchedProfile: FetchedProfile = await response.json();
+        console.log("Fetch profile response:", fetchedProfile);
 
-        // 3. Create DNAS key with necessary fields
-        const dnasKey: ProfileDnasKeyWithValue = {
-            id: 0, // Will be assigned by the server
-            profileId: 0, // Will be assigned by the server
+
+        // 3. Create auth object for the DNAS key request
+        let auth = createAuth(
+            "DAO DAO DNAS Profile | Register Dnas Key",
+            await getNonce(API_BASE, member1HexPublicKey),
+            member1HexPublicKey
+        );
+
+        // 4. Create DNAS object to save to profile
+        const dnasKey: ProfileDnasKeyWithoutIds = {
             type: "api_key",
             keyMetadata: "{}",
-            signatureLifespan: "24h", // 24 hour lifespan
-            uploadLimit: "1000000", // 1MB in bytes
-            apiKeyValue: Buffer.from(apiKeyValue).toString("base64") // Example API key value
+            signatureLifespan: "24h",
+            uploadLimit: "1000000",
+            apiKeyValue: Buffer.from(apiKeyValue).toString("base64")
         };
 
-        // 4. Prepare the full register request - this needs special handling
-        const nonce = await getNonce(API_BASE, member1HexPublicKey);
-        auth = {
-            type: "DAO DAO DNAS Profile | Register Key",
-            nonce,
-            chainId: "juno-1",
-            chainFeeDenom: "ujuno",
-            chainBech32Prefix: "juno",
-            publicKeyType: "/cosmos.crypto.secp256k1.PubKey",
-            publicKeyHex: member1HexPublicKey
-        };
-
-
-        // Create the data structure for the DNAS key
-        const dnasKeyData = {
+        // Create data structure for the DNAS key
+        const dnasKeyDataWithoutSignature = {
             data: {
-                auth,
+                auth, // Each DNAS key has its own auth
                 dao: daoAddr,
                 dnas: dnasKey
-            },
-            signature: "" // Will be filled later
+            }
         };
 
-        // Sign the DNAS key data
-        const messageToSign = {
+        // Sign the DNAS key data using signOffChainAuth
+        const dnasKeyData = await signOffChainAuth({
             type: auth.type,
             nonce: auth.nonce,
-            chain_id: auth.chainId,
+            chainId: auth.chainId,
             address: member1Address,
-            public_key: member1HexPublicKey,
-            data: dnasKeyData.data
-        };
-
-        // 5. Register DNAS key with dao-member-1
-        console.log("\n2. Registering DNAS key for dao-member-1...");
-
-        // Sign the message for public key
-
-        // Get offline signer for amino
-        const { signature } = await signMessageAmino({
+            hexPublicKey: member1HexPublicKey,
+            data: dnasKeyDataWithoutSignature.data,
             offlineSignerAmino: member1Wallet as any,
-            address: member1Address,
-            chainId,
-            messageToSign,
         });
-        // Assign the signature
-        dnasKeyData.signature = signature.signature;
 
-        // Create the request with the signed DNAS key data
-        const registerRequest: RegisterDnasKeyRequest = {
+
+        // Create the main request data
+        const mainRequestData = {
+            auth: auth,
             dnasApiKeys: [dnasKeyData]
         };
 
+        // Sign the main request using signOffChainAuth
+        const registerRequest = await signOffChainAuth({
+            type: auth.type,
+            nonce: auth.nonce,
+            chainId: auth.chainId,
+            address: member1Address,
+            hexPublicKey: member1HexPublicKey,
+            data: mainRequestData,
+            offlineSignerAmino: member1Wallet as any,
+        });
+
         // 5. Register DNAS key with dao-member-1
-        console.log("\n2. Registering DNAS key for dao-member-1...");
         console.log("DNAS key registration payload:", JSON.stringify(registerRequest, null, 2));
-        // Send the request directly (not using sendSignedRequest since we already signed the inner data)
         const registerResponse = await fetch(`${API_BASE}/register-dnas`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -383,14 +346,9 @@ async function main() {
         }
 
         const registerResult = await registerResponse.json();
-        console.log("Register DNAS key response:", registerResponse);
+        console.log("Register DNAS key response:", registerResult);
 
 
-        // 6. Query profile
-        console.log("\n3. Querying profile for dao-member-1...");
-        const response = await fetch(API_BASE + `/address/${member1Account?.address}`)
-        const res: FetchedProfile = await response.json();
-        console.log("Fetch profile response:", res);
 
         // 7. Upload test files
         console.log("\n4. Uploading test files with dao-member-1...");
@@ -568,6 +526,24 @@ async function signMessageAmino({
     } catch (error) {
         throw new Error(`Failed to sign message: ${error}`);
     }
+}
+
+/**
+ * Creates an auth object with the specified nonce and public key hex
+ * @param nonce The nonce value for the request
+ * @param publicKeyHex The hexadecimal representation of the public key
+ * @returns An auth object with the required properties
+ */
+function createAuth(type: string, nonce: number, publicKeyHex: string,): Auth {
+    return {
+        type,
+        nonce,
+        chainId,
+        chainFeeDenom,
+        chainBech32Prefix,
+        publicKeyType,
+        publicKeyHex
+    };
 }
 
 main().catch(console.error);
