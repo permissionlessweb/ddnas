@@ -3,7 +3,6 @@ import { SigningCosmWasmClient, CosmWasmClient } from "@cosmjs/cosmwasm-stargate
 import { fromBase64, toHex } from "@cosmjs/encoding";
 import * as fs from 'fs';
 import * as path from 'path';
-import FormData from 'form-data';
 import dotenv from 'dotenv';
 import { makeSignDoc, Secp256k1HdWallet, StdSignature } from "@cosmjs/amino";
 import { RequestBody, Auth, RegisterDnasKeyRequest, ProfileDnasKeyWithValue, UseDnasKeyRequest, FetchProfileResponse, RegisterDnasKeyResponse, FetchedProfile, SignatureOptions, SignedBody, SignMessageParams, ProfileDnasKeyWithoutIds } from 'dnas/src/types'
@@ -44,14 +43,21 @@ async function uploadFilesToDao(
             const contentType = getContentType(fileName);
             const fileSize = fs.statSync(filePath).size;
 
+
+            const blob = new Blob([fileContent], {
+                type: getContentType(fileName)
+            });
+
             return {
                 path: filePath,
                 name: fileName,
-                content: fileContent,
+                blob: blob,
                 contentType,
                 size: fileSize
             };
         });
+
+
 
         // Create the metadata objects from the file information
         const fileMetadata = fileObjects.map(file => ({
@@ -97,22 +103,23 @@ async function uploadFilesToDao(
         console.log("Sending file upload request...");
 
         // Add the signed message as JSON
-        formData.append('message', JSON.stringify(signedBody));
+        formData.append('auth_message', JSON.stringify(signedBody));
 
-        // Add each file with a predictable key that the server can use
+
+        // Add each file with a predictable key
         fileObjects.forEach((file, index) => {
-            console.log(`Adding file ${index}: ${file.name} (${file.size} bytes)`);
-            formData.append(`file_${index}`, file.content, {
-                filename: file.name,
-                contentType: file.contentType
-            });
+            // Make sure file.content is an actual File or Blob object
+            formData.append(`file_${index}`, file.blob);
         });
 
+        // console.log("formData", formData)
         // Send the request
         // First, send the signed message as JSON
         const messageResponse = await fetch(`${API_BASE}/use-dnas`, {
             method: 'POST',
-            body: formData as unknown as BodyInit
+            // Let the browser set the content-type header automatically
+            // It will include the boundary parameter which is required
+            body: formData
         });
 
         if (!messageResponse.ok) {
@@ -130,6 +137,7 @@ async function uploadFilesToDao(
         throw error;
     }
 }
+
 // New function to register a profile (public key)
 async function registerProfile(
     wallet: OfflineSigner,
@@ -370,9 +378,44 @@ async function main() {
 
         console.log("File upload response:", uploadResponse);
 
+
         // 8. Query files to verify upload
         console.log("\n5. Querying files for dao-member-1...");
         // Add file query implementation if your API supports it
+
+
+
+        // 3. Create auth object for the DNAS key request
+        auth = createAuth(
+            "DAO DAO DNAS Profile | UnRegister Dnas Key",
+            await getNonce(API_BASE, member1HexPublicKey),
+            member1HexPublicKey
+        );
+        // Create the main unregister request data
+        const mainUnregisterRequestData = {
+            auth: auth,
+            daos: [daoAddr]
+        };
+
+        // Sign the main request using signOffChainAuth
+        const unregisterRequest = await signOffChainAuth({
+            type: auth.type,
+            nonce: auth.nonce,
+            chainId: auth.chainId,
+            address: member1Address,
+            hexPublicKey: member1HexPublicKey,
+            data: mainUnregisterRequestData,
+            offlineSignerAmino: member1Wallet as any,
+        });
+
+        // 9. remove api key from dnas worker
+        const removeDnasApiKey = await fetch(`${API_BASE}/unregister-dnas`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(unregisterRequest),
+        });
+        console.log("Dnas Key registration response:", removeDnasApiKey);
+
 
         console.log("\nAll tests completed successfully!");
 

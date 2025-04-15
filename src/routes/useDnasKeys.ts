@@ -2,8 +2,15 @@ import { fromBech32, toHex } from "@cosmjs/encoding";
 import { makePublicKey } from "../publicKeys";
 import { AuthorizedRequest, Env, FileMetadata, UseDnasKeyRequest, UseDnasKeyResponse } from "../types";
 import { getDnasParamms, getIsDaoMember } from "../utils/dao";
-import { getDnasApiKeyValue, getProfileDnasApiKeys, getProfileFromAddressHex } from "../utils";
+import { getDnasApiKeyValue, getProfileDnasApiKeys, getProfileFromAddressHex, respond } from "../utils";
 import { JackalErrorResponse, JackalSuccessResponse } from "../utils/jackal";
+
+
+const jackalApiCreateCollectionBase = 'https://pinapi.jackalprotocol.com/api/collections/test21233'
+const jackalApiUploadFileBase = 'https://pinapi.jackalprotocol.com/api/files'
+const jackalApiUploadMultipleFileBase = 'https://pinapi.jackalprotocol.com/api/v1/files'
+const jackalApiAddFileToCollection = 'https://pinapi.jackalprotocol.com/api/files'
+
 
 
 export const useDnasKeys = async (
@@ -16,40 +23,40 @@ export const useDnasKeys = async (
         publicKey,
     } = request;
     console.log("Starting useDnasKeys function");
-    const respond = (status: number, response: UseDnasKeyResponse) =>
-        new Response(JSON.stringify(response), {
-            status,
-        })
+    console.log(data.files)
+
     // Validate public key.
     const dnasChainpublicKey = makePublicKey(
         data.auth.publicKeyType,
         data.auth.publicKeyHex
-    )
-    const signer = dnasChainpublicKey.getBech32Address(data.auth.chainBech32Prefix)
-    console.log("signer", signer)
-    const daoMember = await getIsDaoMember(data.auth.chainId, signer, data.dao)
+    );
+
+    const signer = dnasChainpublicKey.getBech32Address(data.auth.chainBech32Prefix);
+    console.log("signer", signer);
+
+    const daoMember = await getIsDaoMember(data.auth.chainId, signer, data.dao);
     if (!daoMember) {
         return respond(500, {
-            error: 'Addr is is not member of DAO: '
-        })
+            error: 'Addr is not member of DAO'
+        });
     }
 
     // confirm dao has widget enabled
-    const dnsParams = await getDnasParamms(data.auth.chainId, data.dao)
-    console.log("DNAS PARAMS FOUND", dnsParams)
+    const dnsParams = await getDnasParamms(data.auth.chainId, data.dao);
+    console.log("DNAS PARAMS FOUND", dnsParams);
 
     // get profile for member 
-    const bech32Address = data.keyOwner.trim()
-    const addressHex = toHex(fromBech32(bech32Address).data)
+    const bech32Address = data.keyOwner.trim();
+    const addressHex = toHex(fromBech32(bech32Address).data);
 
-    const profile = await getProfileFromAddressHex(env, addressHex)
+    const profile = await getProfileFromAddressHex(env, addressHex);
     if (!profile) {
         return respond(500, {
             error: 'Dao member has not registered a profile for Dnas support.'
-        })
+        });
     }
 
-    const profileDnasApiKeys = await getProfileDnasApiKeys(env, profile.id)
+    const profileDnasApiKeys = await getProfileDnasApiKeys(env, profile.id);
 
     // - key owner has registered a key to this dao
     const thisDnasApi = profileDnasApiKeys.find((key) =>
@@ -58,40 +65,39 @@ export const useDnasKeys = async (
     if (!thisDnasApi) {
         return respond(500, {
             error: 'Dao member has no dnas api key for this DAO.'
-        })
+        });
     }
-    console.log("THIS DAO SPECIFIC DNAS API KEY FOUND", thisDnasApi)
+    console.log("THIS DAO SPECIFIC DNAS API KEY FOUND", thisDnasApi);
 
-    //  get the actual api key
-    let apiKey = await getDnasApiKeyValue(env, thisDnasApi.row.id)
+    // get the actual api key
+    let apiKey = await getDnasApiKeyValue(env, thisDnasApi.row.id);
     if (!apiKey) {
         return respond(500, {
-            error: 'Unable  to resolve apiKey.'
-        })
+            error: 'Unable to resolve apiKey.'
+        });
     }
 
 
     try {
         // Create a new FormData for the outgoing request
         const outgoingForm = new FormData();
-        // Use the files metadata from the parsed body
-        for (let i = 0; i < data.files.length; i++) {
-            const file = data.files[i];
-            outgoingForm.append("files", file);
-        }
+        outgoingForm.append("files", data.files[0]);
+
+        // Log what we're actually sending
+        console.log("FormData entries:", outgoingForm);
+        // @ts-ignore: FormData has forEach in browsers but might not be recognized in your environment
 
         // Better error handling with async/await
-        const options = {
+        const options: RequestInit = {
             method: 'POST',
             headers: {
-                Authorization: `Bearer ${Buffer.from(apiKey, 'base64').toString('utf-8')}`
-                // Note: Don't set Content-Type header when using FormData,
-                // the browser will set it automatically with the boundary
+                Authorization: `Bearer ${Buffer.from(apiKey, 'base64').toString('utf-8')}`,
+
             },
             body: outgoingForm // Include the FormData as the request body
         };
         console.log("got this far, we are hitting the jackal api...")
-        const response = await fetch('https://pinapi.jackalprotocol.com/api/v1/files', options);
+        const response = await fetch(jackalApiUploadMultipleFileBase, options);
         if (response.ok) {
             const res: JackalSuccessResponse = await response.json();
             console.log(res)

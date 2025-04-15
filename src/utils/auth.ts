@@ -31,6 +31,67 @@ export const authMiddleware = async (
   }
 }
 
+// Middleware specifically for handling authentication with multipart/form-data
+// This will be used only for the /use-dnas endpoint
+export const formDataAuthMiddleware = async (
+  request: AuthorizedRequest
+): Promise<Response | void> => {
+  try {
+    console.log("request:", request)
+
+    // Grab form data from request
+    const formData: FormData = await request.formData?.();
+    if (!formData) {
+      return new Response('Missing form data', { status: 400 });
+    }
+
+    console.log("Received formData:", formData);
+    let signedBodyString = formData.get("auth_message")?.toString()
+
+
+    console.log("authmsg:", signedBodyString);
+
+    if (!signedBodyString) {
+      return new Response('Missing auth_message in form data', { status: 400 });
+    }
+
+    // Parse the signed body string into a RequestBody object
+    let parsedBody: RequestBody;
+    try {
+      parsedBody = JSON.parse(signedBodyString);
+    } catch (e) {
+      console.error("Failed to parse auth_message as JSON:", e);
+      return new Response('Invalid auth_message format', { status: 400 });
+    }
+    // Now verify the parsed RequestBody and get the public key
+    const publicKey = await verifyRequestBodyAndGetPublicKey(parsedBody);
+
+    // Validate signature and extract public key
+    // This part depends on your validation logic, but might look like:
+    if (!publicKey) {
+      return new Response('Invalid signature', { status: 401 });
+    }
+
+    // // Attach the parsed body and public key to the request for downstream handlers
+    request.parsedBody = parsedBody;
+    request.publicKey = publicKey;
+
+    // create new formdata and pass any files into the new formdataq
+    // Validate public key.
+
+    console.log("publicKeyformed to be verified:", publicKey)
+
+    // If all is valid, add parsed body to request and do not return to allow
+    // continuing.
+    request.parsedBody = parsedBody
+
+  } catch (error) {
+    console.error('Error in formDataAuthMiddleware:', error);
+    return new Response('Internal server error processing form data', { status: 500 });
+  }
+};
+
+
 /**
  * Perform verification on a parsed request body. Throws error on failure.
  * Returns public key on success.

@@ -11,9 +11,10 @@ import { unregisterPublicKeys } from './routes/unregisterPublicKeys'
 import { updateProfile } from './routes/updateProfile'
 import { Env } from './types'
 import { KnownError } from './utils'
-import { authMiddleware } from './utils/auth'
+import { authMiddleware, formDataAuthMiddleware } from './utils/auth'
 import { useDnasKeys } from './routes/useDnasKeys'
 import { registerDnasKeys } from './routes/registerDnas'
+import { unregisterDnasKeys } from './routes/unregisterDnasKeys'
 
 // Create CORS handlers.
 const { preflight, corsify } = createCors({
@@ -67,10 +68,10 @@ router.post('/register-dnas', authMiddleware, registerDnasKeys)
 router.post('/unregister', authMiddleware, unregisterPublicKeys)
 
 // Register dnas ap keys.
-router.post('/unregister-dnas', authMiddleware, registerPublicKeys)
+router.post('/unregister-dnas', authMiddleware, unregisterDnasKeys)
 
 // Request to use a dnas key as a DAO member
-router.post('/use-dnas', authMiddleware, useDnasKeys)
+router.post('/use-dnas', formDataAuthMiddleware, useDnasKeys)
 
 // 404
 router.all('*', () => new Response('404', { status: 404 }))
