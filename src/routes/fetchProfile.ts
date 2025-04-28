@@ -4,6 +4,7 @@ import { Request, RouteHandler } from 'itty-router'
 import { makePublicKey } from '../publicKeys'
 import {
   DbRowProfile,
+  DnasKeyRecord,
   Env,
   FetchProfileResponse,
   FetchedProfile,
@@ -78,22 +79,29 @@ export const fetchProfile: RouteHandler<Request> = async (
 
     // Process the ddnas to map them by daoAddr
     const dnasByChainAndDaoAddr = ddnas.reduce<
-      Record<string, Record<string, { keyMetadata: string; signatureLifespan: string; uploadLimit?: string }>>
+      Record<string, DnasKeyRecord>
     >((acc, dna) => {
-      const key = dna.row.chainId
-      if (!acc[key]) {
-        acc[key] = {}
+      const chainIdKey = String(dna.row.chainId);
+
+      // Initialize the chain record if it doesn't exist
+      if (!acc[chainIdKey]) {
+        acc[chainIdKey] = {};
       }
 
-      // form public dnas object to respond
-      acc[key][dna.row.daoAddr] = {
-        keyMetadata: dna.row.keyMetadata,
-        signatureLifespan: dna.row.signatureLifespan,
-        uploadLimit: dna.row.uploadLimit,
-      }
+      // Add the DNAS record with the daoAddr as key
+      acc[chainIdKey][dna.row.daoAddr] = {
+        chainId: String(dna.row.chainId),
+        keyHash: String(dna.row.keyHash),
+        keyOwner: String(dna.row.keyOwner),
+        keyMetadata: String(dna.row.keyMetadata),
+        // Only include uploadLimit if it exists
+        ...(dna.row.uploadLimit !== undefined && dna.row.uploadLimit !== null
+          ? { uploadLimit: String(dna.row.uploadLimit) }
+          : {})
+      };
 
-      return acc
-    }, {})
+      return acc;
+    }, {});
 
     // Build the chains object
     const accountPerChain = publicKeysPerChain.map(async ({ chainId, publicKey }) => {
@@ -129,7 +137,7 @@ export const fetchProfile: RouteHandler<Request> = async (
       try {
         // Get profile's public key for the NFT's chain, and then verify that
         // the NFT is owned by it.
-        const publicKey = profile.chains[profileRow.nftChainId]?.daoMemberPublicKey
+        const publicKey = profile.chains[profileRow.nftChainId]?.publicKey
         if (publicKey) {
           profile.nft = await getOwnedNftWithImage(
             env,

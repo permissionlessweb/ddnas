@@ -10,23 +10,12 @@ export const getIsDaoMember = async (
     daoAddr: string
 ): Promise<boolean> => {
     try {
-        const res = await fetch(`https://indexer.daodao.zone/${chainId}/contract/${daoAddr}/daoCore/votingPower?address=${daoMemberAddr}`)
-        if (!res.ok) {
-            throw new Error(await res.text().catch(() => 'Unknown error.'))
-        }
-
-        // Handle both string and JSON responses
         let votingPower;
+        const res = await fetch(`https://indexer.daodao.zone/${chainId}/contract/${daoAddr}/daoCore/votingPower?address=${daoMemberAddr}`)
+        if (!res.ok) { throw new Error(await res.text().catch(() => 'Unknown error.')) }
         const responseText = await res.text();
-        console.log("responseText", responseText)
-        try {
-            // Try to parse as JSON
-            votingPower = JSON.parse(responseText);
-        } catch (e) {
-            // If not JSON, use the raw text
-            votingPower = responseText;
-        }
-        // Check if voting power is greater than 0
+        try { votingPower = JSON.parse(responseText) } catch (e) { votingPower = responseText }
+        console.log("votingPower:",votingPower)
         return votingPower && votingPower !== "0";
     } catch (err) {
         console.error(err)
@@ -41,12 +30,9 @@ export const getDnasParamms = async (
 ): Promise<DnasWidgetParams> => {
 
     try {
-        const res = await fetch(`https://indexer.daodao.zone/${chainId}/contract/${daoAddr}/daoCore/item?key=${DDNAS_WIDGET_ITEM}`
-        )
+        const res = await fetch(`https://indexer.daodao.zone/${chainId}/contract/${daoAddr}/daoCore/item?key=${DDNAS_WIDGET_ITEM}`)
+        if (!res.ok) { throw new Error(await res.text().catch(() => 'Unknown error.')) }
 
-        if (!res.ok) {
-            throw new Error(await res.text().catch(() => 'Unknown error.'))
-        }
         // assert this response was returned with correct type
         let response: DnasWidgetParams = await res.json()
 

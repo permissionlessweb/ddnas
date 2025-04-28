@@ -235,7 +235,7 @@ async function main() {
         const apiKeyValue = process.env.DNAS_API_KEY_VALUE || ""; // API key from env or default
 
         // 0. Initialize wallets for testing
-        const daoMember1Mnemonic = process.env.DAO_MEMBER1_MNEMONIC || "major garlic pulse siren arm identify all oval dumb tissue moral upon poverty erase judge either awkward metal antenna grid crack pioneer panther bullet"; // Replace with your test mnemonic
+        const daoMember1Mnemonic = process.env.DAO_MEMBER1_MNEMONIC || "unhappy token earn risk cushion dance robot filter task october giggle funny"; // Replace with your test mnemonic
         const daoMember2Mnemonic = process.env.DAO_MEMBER2_MNEMONIC || "finish custom duty any destroy sibling zone brain legend fitness subject token high skirt festival define result vacant pepper vast element present direct bright"; // Replace with your test mnemonic
 
         const member1Wallet = await initializeWallet(daoMember1Mnemonic);
@@ -269,152 +269,153 @@ async function main() {
         console.log("Member 1 public key:", member1HexPublicKey);
         console.log("Member 2 public key:", member2HexPublicKey);
 
-        // 1. Register profile (public key) for dao-member-1 
-        console.log("\n1. Registering profile for dao-member-1...");
-        const profileResponse = await registerProfile(
-            member1Wallet,
-            member1Address,
-            member1HexPublicKey,
-        );
-        console.log("Register profile response:", profileResponse)
+        // // 1. Register profile (public key) for dao-member-1 
+        // console.log("\n1. Registering profile for dao-member-1...");
+        // const profileResponse = await registerProfile(
+        //     member1Wallet,
+        //     member1Address,
+        //     member1HexPublicKey,
+        // );
+        // console.log("Register profile response:", profileResponse)
 
-        // 2. Get fetch saved profile for profile id
-        console.log("\n2. Querying profile for dao-member-1...");
-        const response = await fetch(API_BASE + `/${member1HexPublicKey}`)
-        const fetchedProfile: FetchedProfile = await response.json();
+        // // 2. Get fetch saved profile for profile id
+        // console.log("\n2. Querying profile for dao-member-1...");
+        let response = await fetch(API_BASE + `/${member1HexPublicKey}`)
+        let fetchedProfile: FetchedProfile = await response.json();
         console.log("Fetch profile response:", fetchedProfile);
 
 
-        // 3. Create auth object for the DNAS key request
+        // // 3. Create auth object for the DNAS key request
         let auth = createAuth(
             "DAO DAO DNAS Profile | Register Dnas Key",
             await getNonce(API_BASE, member1HexPublicKey),
             member1HexPublicKey
         );
 
-        // 4. Create DNAS object to save to profile
+        // // 4. Create DNAS object to save to profile
         const dnasKey: ProfileDnasKeyWithoutIds = {
             type: "api_key",
             keyMetadata: "{}",
-            signatureLifespan: "24h",
             uploadLimit: "1000000",
             apiKeyValue: Buffer.from(apiKeyValue).toString("base64")
         };
 
-        // Create data structure for the DNAS key
-        const dnasKeyDataWithoutSignature = {
-            data: {
-                auth, // Each DNAS key has its own auth
-                dao: daoAddr,
-                dnas: dnasKey
-            }
-        };
+        // // // Create data structure for the DNAS key
+        // const dnasKeyDataWithoutSignature = {
+        //     data: {
+        //         auth, // Each DNAS key has its own auth
+        //         dao: daoAddr,
+        //         dnas: dnasKey
+        //     }
+        // };
 
-        // Sign the DNAS key data using signOffChainAuth
-        const dnasKeyData = await signOffChainAuth({
-            type: auth.type,
-            nonce: auth.nonce,
-            chainId: auth.chainId,
-            address: member1Address,
-            hexPublicKey: member1HexPublicKey,
-            data: dnasKeyDataWithoutSignature.data,
-            offlineSignerAmino: member1Wallet as any,
-        });
-
-
-        // Create the main request data
-        const mainRequestData = {
-            auth: auth,
-            dnasApiKeys: [dnasKeyData]
-        };
-
-        // Sign the main request using signOffChainAuth
-        const registerRequest = await signOffChainAuth({
-            type: auth.type,
-            nonce: auth.nonce,
-            chainId: auth.chainId,
-            address: member1Address,
-            hexPublicKey: member1HexPublicKey,
-            data: mainRequestData,
-            offlineSignerAmino: member1Wallet as any,
-        });
-
-        // 5. Register DNAS key with dao-member-1
-        console.log("DNAS key registration payload:", JSON.stringify(registerRequest, null, 2));
-        const registerResponse = await fetch(`${API_BASE}/register-dnas`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(registerRequest),
-        });
-
-        if (!registerResponse.ok) {
-            const errorText = await registerResponse.text();
-            console.error(`DNAS key registration failed with status ${registerResponse.status}: ${errorText}`);
-            throw new Error(`API error: ${registerResponse.status} - ${registerResponse.statusText}`);
-        }
-
-        const registerResult = await registerResponse.json();
-        console.log("Register DNAS key response:", registerResult);
+        // // Sign the DNAS key data using signOffChainAuth
+        // const dnasKeyData = await signOffChainAuth({
+        //     type: auth.type,
+        //     nonce: auth.nonce,
+        //     chainId: auth.chainId,
+        //     address: member1Address,
+        //     hexPublicKey: member1HexPublicKey,
+        //     data: dnasKeyDataWithoutSignature.data,
+        //     offlineSignerAmino: member1Wallet as any,
+        // });
 
 
+        // // Create the main request data
+        // const mainRequestData = {
+        //     auth: auth,
+        //     dnasApiKeys: [dnasKeyData]
+        // };
 
-        // 7. Upload test files
-        console.log("\n4. Uploading test files with dao-member-1...");
+        // // Sign the main request using signOffChainAuth
+        // const registerRequest = await signOffChainAuth({
+        //     type: auth.type,
+        //     nonce: auth.nonce,
+        //     chainId: auth.chainId,
+        //     address: member1Address,
+        //     hexPublicKey: member1HexPublicKey,
+        //     data: mainRequestData,
+        //     offlineSignerAmino: member1Wallet as any,
+        // });
 
-        const testFilePaths = [
-            path.join(__dirname, 'test-data', 'test-file1.txt'),
-            path.join(__dirname, 'test-data', 'tomato.json'),
-        ];
+        // // // 5. Register DNAS key with dao-member-1
+        // console.log("DNAS key registration payload:", JSON.stringify(registerRequest, null, 2));
+        // const registerResponse = await fetch(`${API_BASE}/register-dnas`, {
+        //     method: 'POST',
+        //     headers: { 'Content-Type': 'application/json' },
+        //     body: JSON.stringify(registerRequest),
+        // });
 
-        // Upload files using the DAO member's credentials
-        const uploadResponse = await uploadFilesToDao(
-            member1Wallet,
-            member1HexPublicKey,
-            member1Address,
-            daoAddr,
-            member1Address,
-            testFilePaths
-        );
+        // if (!registerResponse.ok) {
+        //     const errorText = await registerResponse.text();
+        //     console.error(`DNAS key registration failed with status ${registerResponse.status}: ${errorText}`);
+        //     throw new Error(`API error: ${registerResponse.status} - ${registerResponse.statusText}`);
+        // }
 
-        console.log("File upload response:", uploadResponse);
+        // const registerResult = await registerResponse.json();
+        // console.log("Register DNAS key response:", registerResult);
+
+        // response = await fetch(API_BASE + `/${member1HexPublicKey}`)
+        // fetchedProfile = await response.json();
+        // console.log("Fetch profile response:", fetchedProfile);
+
+        // // 7. Upload test files
+        // console.log("\n4. Uploading test files with dao-member-1...");
+
+        // const testFilePaths = [
+        //     path.join(__dirname, 'test-data', 'test-file1.txt'),
+        //     path.join(__dirname, 'test-data', 'tomato.json'),
+        // ];
+
+        // // Upload files using the DAO member's credentials
+        // const uploadResponse = await uploadFilesToDao(
+        //     member1Wallet,
+        //     member1HexPublicKey,
+        //     member1Address,
+        //     daoAddr,
+        //     member1Address,
+        //     testFilePaths
+        // );
+
+        // console.log("File upload response:", uploadResponse);
 
 
-        // 8. Query files to verify upload
-        console.log("\n5. Querying files for dao-member-1...");
-        // Add file query implementation if your API supports it
+        // // 8. Query files to verify upload
+        // console.log("\n5. Querying files for dao-member-1...");
+        // // Add file query implementation if your API supports it
 
 
 
-        // 3. Create auth object for the DNAS key request
-        auth = createAuth(
-            "DAO DAO DNAS Profile | UnRegister Dnas Key",
-            await getNonce(API_BASE, member1HexPublicKey),
-            member1HexPublicKey
-        );
-        // Create the main unregister request data
-        const mainUnregisterRequestData = {
-            auth: auth,
-            daos: [daoAddr]
-        };
+        // // 3. Create auth object for the DNAS key request
+        // auth = createAuth(
+        //     "DAO DAO DNAS Profile | UnRegister Dnas Key",
+        //     await getNonce(API_BASE, member1HexPublicKey),
+        //     member1HexPublicKey
+        // );
+        // // Create the main unregister request data
+        // const mainUnregisterRequestData = {
+        //     auth: auth,
+        //     daos: [daoAddr]
+        // };
 
-        // Sign the main request using signOffChainAuth
-        const unregisterRequest = await signOffChainAuth({
-            type: auth.type,
-            nonce: auth.nonce,
-            chainId: auth.chainId,
-            address: member1Address,
-            hexPublicKey: member1HexPublicKey,
-            data: mainUnregisterRequestData,
-            offlineSignerAmino: member1Wallet as any,
-        });
+        // // Sign the main request using signOffChainAuth
+        // const unregisterRequest = await signOffChainAuth({
+        //     type: auth.type,
+        //     nonce: auth.nonce,
+        //     chainId: auth.chainId,
+        //     address: member1Address,
+        //     hexPublicKey: member1HexPublicKey,
+        //     data: mainUnregisterRequestData,
+        //     offlineSignerAmino: member1Wallet as any,
+        // });
 
-        // 9. remove api key from dnas worker
-        const removeDnasApiKey = await fetch(`${API_BASE}/unregister-dnas`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(unregisterRequest),
-        });
-        console.log("Dnas Key registration response:", removeDnasApiKey);
+        // // 9. remove api key from dnas worker
+        // const removeDnasApiKey = await fetch(`${API_BASE}/unregister-dnas`, {
+        //     method: 'POST',
+        //     headers: { 'Content-Type': 'application/json' },
+        //     body: JSON.stringify(unregisterRequest),
+        // });
+        // console.log("Dnas Key registration response:", removeDnasApiKey);
 
 
         console.log("\nAll tests completed successfully!");

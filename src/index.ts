@@ -15,6 +15,8 @@ import { authMiddleware, formDataAuthMiddleware } from './utils/auth'
 import { useDnasKeys } from './routes/useDnasKeys'
 import { registerDnasKeys } from './routes/registerDnas'
 import { unregisterDnasKeys } from './routes/unregisterDnasKeys'
+import { fetchAllDaoKeys } from './routes/fetchDaoKeys'
+import { updateDnasKeys } from './routes/updateDnasKeys'
 
 // Create CORS handlers.
 const { preflight, corsify } = createCors({
@@ -55,8 +57,19 @@ router.get('/hex/:addressHex', fetchProfile)
 // Backwards compatible.
 router.get('/bech32/:addressHex', fetchProfile)
 
+// Fetch profile with bech32 address.
+router.get('/daoKeys/address/:bech32Address', fetchAllDaoKeys)
+
+// fetch all keys available for a given DAO
+router.get('/daoKeys/bech32/:addressHex', fetchAllDaoKeys)
+// fetch all keys available for a given DAO
+router.get('/daoKeys/hex/:addressHex', fetchAllDaoKeys)
+
 // Update profile.
 router.post('/', authMiddleware, updateProfile)
+
+// Update dnas.
+router.post('/update-dnas', authMiddleware, updateDnasKeys)
 
 // Register more public keys.
 router.post('/register', authMiddleware, registerPublicKeys)

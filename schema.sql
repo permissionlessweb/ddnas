@@ -76,16 +76,13 @@ CREATE TABLE profile_dnas_api_key_preferences (
 -- Create a single index for the combined fields
 CREATE INDEX idx_profile_chain_dao ON profile_dnas_api_key_preferences (profileId, chainId, daoAddr);
 
--- DNAS SPECIFIC 
---  todo: make sure we are setting the apikey hash value as the key to access the actual value in the db
--- DnasApiKey table with additional fields
+-- DNAS SPECIFIC
 DROP TABLE IF EXISTS dnas_api_keys;
 CREATE TABLE dnas_api_keys (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     profileId INTEGER NOT NULL,
     type TEXT NOT NULL,
     keyMetadata TEXT,
-    signatureLifespan TEXT,
     uploadLimit TEXT,
     apiKeyHash VARBINARY(32), -- Will store SHA-256 hash of the API key
     chainId TEXT NOT NULL,    -- Added to store which blockchain chain this key is for
@@ -98,7 +95,7 @@ CREATE TABLE dnas_api_keys (
     CONSTRAINT unique_profile_chain_dao UNIQUE (profileId, chainId, daoAddr)
 );
 
--- api_keys table to store the keys and metadata
+-- api_keys table to allow storing the keys and metadata in separate rows
 DROP TABLE IF EXISTS api_keys;
 CREATE TABLE api_keys (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -112,8 +109,7 @@ CREATE TABLE api_keys (
 CREATE INDEX idx_apiKeyHash ON dnas_api_keys (apiKeyHash);
 
 -- Create indices for the new fields
-CREATE INDEX idx_chainId ON dnas_api_keys (chainId);
-CREATE INDEX idx_daoAddr ON dnas_api_keys (daoAddr);
+CREATE INDEX idx_dnas_keys_chain_dao ON dnas_api_keys (chainId, daoAddr);
 CREATE INDEX idx_profile_chain_dao_by_keys ON dnas_api_keys (profileId, chainId, daoAddr);
 
 -- Create index on encryptedKey for faster lookups

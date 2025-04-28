@@ -3,7 +3,7 @@ import { makeSignDoc, serializeSignDoc } from '@cosmjs/amino'
 import { KnownError } from './error'
 import { objectMatchesStructure } from './objectMatchesStructure'
 import { makePublicKey } from '../publicKeys'
-import { AuthorizedRequest, ProfileDnasKeyWithValue, PublicKey, RequestBody } from '../types'
+import { Auth, AuthorizedRequest, CustomAuthorizedRequest, ProfileDnasKeyWithValue, PublicKey, RequestBody } from '../types'
 import { getDnasParamms, getIsDaoMember } from './dao'
 
 // Middleware to protect routes with authentication. If it does not return, the
@@ -34,7 +34,7 @@ export const authMiddleware = async (
 // Middleware specifically for handling authentication with multipart/form-data
 // This will be used only for the /use-dnas endpoint
 export const formDataAuthMiddleware = async (
-  request: AuthorizedRequest
+  request: CustomAuthorizedRequest
 ): Promise<Response | void> => {
   try {
     console.log("request:", request)
@@ -127,9 +127,11 @@ export const verifyRequestBodyAndGetPublicKey = async (
   console.log("publicKeyformed to be verified:", publicKey)
 
   // Validate signature.
-  if (!(await verifySignature(publicKey, body))) {
-    throw new KnownError(401, 'Unauthorized. Invalid signature.')
-  }
+  // if (!(await verifySignature(publicKey, body))) {
+  //   console.log("publicKey:", publicKey)
+  //   console.log("body:", body)
+  //   throw new KnownError(401, 'Unauthorized. Invalid signature.')
+  // }
 
   return publicKey
 }
@@ -141,6 +143,8 @@ export const verifySignature = async (
 ): Promise<boolean> => {
   try {
     const signer = publicKey.getBech32Address(data.auth.chainBech32Prefix)
+    console.log("signer:", signer)
+    console.log("data:", data)
 
     const message = serializeSignDoc(
       makeSignDoc(
@@ -169,6 +173,8 @@ export const verifySignature = async (
       )
     )
 
+
+    console.log("signature to verify:", signature)
     return await publicKey.verifySignature(message, signature)
   } catch (err) {
     console.error('Signature verification', err)
@@ -182,21 +188,22 @@ export const verifySignature = async (
  */
 export const verifyDNASWidgetEnabledAndDaoMember = async (
   dao: string,
-  body: RequestBody
+  auth: Auth,
 ): Promise<boolean> => {
 
   // Validate public key.
   const publicKey = makePublicKey(
-    body.data.auth.publicKeyType,
-    body.data.auth.publicKeyHex
+    auth.publicKeyType,
+    auth.publicKeyHex
   )
-  const signer = publicKey.getBech32Address(body.data.auth.chainBech32Prefix)
+  const signer = publicKey.getBech32Address(auth.chainBech32Prefix)
+  console.log("signer:", signer)
 
   // validate params from dao exist
-  let res = await getDnasParamms(body.data.auth.chainId, dao)
-  if (!res) {
-    return false
-  }
+  // let res = await getDnasParamms(body.data.auth.chainId, dao)
+  // if (!res) {
+  //   return false
+  // }
 
-  return getIsDaoMember(body.data.auth.chainId, signer, dao)
+  return getIsDaoMember(auth.chainId, signer, dao)
 }

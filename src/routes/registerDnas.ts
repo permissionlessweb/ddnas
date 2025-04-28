@@ -6,7 +6,7 @@ import { addDnsProfileApiKey, getProfileFromPublicKeyHex, incrementProfileNonce,
 export const registerDnasKeys = async (
     {
         parsedBody: {
-            data: { auth, dnasApiKeys },
+            data: { auth, keys }, signature,
         },
         publicKey,
     }: AuthorizedRequest<RegisterDnasKeyRequest>,
@@ -17,10 +17,20 @@ export const registerDnasKeys = async (
             status,
         })
     try {
+        console.log(auth)
+        console.log(keys)
+
+        if (!keys || !Array.isArray(keys)) {
+            throw new Error("Keys must be provided as an array");
+        }
+
         await Promise.all(
-            // verify widget is enabled & is dao
-            dnasApiKeys.filter((key) => verifyDNASWidgetEnabledAndDaoMember(key.data.dao, key))
-                .map((key) => verifyRequestBodyAndGetPublicKey(key))
+            keys.filter((key) => {
+                // Add additional logging for debugging
+                console.log("Processing key for DAO:", key.dao);
+                return verifyDNASWidgetEnabledAndDaoMember(key.dao, auth);
+            })
+                .map((key) => verifyRequestBodyAndGetPublicKey({ data: { auth, keys }, signature }))
         )
     } catch (err) {
         if (err instanceof KnownError) {
@@ -72,8 +82,9 @@ export const registerDnasKeys = async (
 
     // Validate all nonces to prevent replay attacks.
     if (
-        auth.nonce !== profile.nonce ||
-        dnasApiKeys.some((key) => key.data.auth.nonce !== profile!.nonce)
+        auth.nonce !== profile.nonce
+        // ||
+        // data.dnasApiKeys.some((key) => data.auth.nonce !== profile!.nonce)
     ) {
         return respond(401, {
             error: `Invalid nonce. Expected: ${profile.nonce}`,
@@ -94,21 +105,21 @@ export const registerDnasKeys = async (
     }
 
     const dnasKeysToAdd = Object.entries(
-        dnasApiKeys.reduce(
-            (acc, { data }) => {
-                const pubKeyKey = `${data.auth.publicKeyType}:${data.auth.publicKeyHex}`
+        keys.reduce(
+            (acc, { dnas, dao }) => {
+                const pubKeyKey = `${auth.publicKeyType}:${auth.publicKeyHex}`
 
                 // Initialize the entry if it doesn't exist
                 if (!acc[pubKeyKey]) {
                     acc[pubKeyKey] = {
-                        apiKeyValue: { profileId: profile.id, ...data.dnas },
+                        apiKeyValue: { profileId: profile.id, ...dnas },
                         daos: new Set<string>()
                     };
                 }
 
                 // Add the dao value to the Set
                 // Format should be "chainId:daoAddr"
-                const daoKey = `${data.auth.chainId}:${data.dao}`
+                const daoKey = `${auth.chainId}:${dao}`
                 acc[pubKeyKey].daos.add(daoKey);
 
                 return acc

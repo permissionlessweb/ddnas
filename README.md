@@ -6,8 +6,12 @@
 - support for tracking key usage by dao member
 - support for key owner to allow/deny dao members
 - register key key to secret network smart contract (hash of key is registered, signed by dao  member when used to  access from secret contract state).
-<!-- - any time a dao member leaves or the api is used, we need to remove their api key if it exists -->
+- any time a dao member leaves or the api is used, we need to remove their api key if it exists
+- profileID as variable to register exostomg from external profile source
 
+
+<!-- // connect form with modal to make use when signing first registered keys -->
+<!-- - fix expected request server side to only sign once with an array of keys -->
 
 <!-- Currently deployed at https://pfpk.daodao.zone -->
 
@@ -525,6 +529,58 @@ with the `signDoc` argument generated using `makeSignDoc` from the
 `@cosmjs/amino` package. This can be seen in the signature verification code
 located in [src/index.ts](./src/utils/auth.ts#L20) around line 20.
 
+### `POST /update-dnas`
+
+The expected request body type is:
+
+```ts
+  
+type UpdateDnasKeysRequest = {
+  data: {
+    dnas: {
+      daoAddr: string
+      dnasKey:  dnasKey: Partial<ProfileDnasKeyWithValue> | null
+    } 
+    auth: {
+      type: string;
+      nonce: number;
+      chainId: string;
+      chainFeeDenom: string;
+      chainBech32Prefix: string;
+      publicKeyType: string;
+      publicKeyHex: string;
+    };
+  };
+  signature: string;
+};
+```
+
+The returned type is:
+
+```ts
+type UnregisterPublicKeyResponse = {
+  success: true;
+};
+```
+
+or in the case of an error:
+
+```ts
+type UnregisterPublicKeyResponse = {
+  error: string;
+};
+```
+
+This route lets the user unregister public keys from their profile.
+
+The nonce from the latest GET request must be provided to prevent replay
+attacks.
+
+The signature is derived by calling `OfflineAminoSigner`'s `signAmino` function
+with the `signDoc` argument generated using `makeSignDoc` from the
+`@cosmjs/amino` package. This can be seen in the signature verification code
+located in [src/index.ts](./src/utils/auth.ts#L20) around line 20.
+
 
 ### `POST /use-dnas`
 
@@ -670,6 +726,29 @@ or in the case of an error:
 
 ```ts
 type StatsResponse = {
+  error: string;
+};
+```
+
+### `GET /daoKeys`
+
+This route returns all keys that have been registered for a specific DAO. 
+
+Able to pass dao address via:
+- bech32 raw hex string of public key
+- bech32 encoded address
+- public key string
+
+The returned type is:
+
+```ts
+type FetchDaoKeysResponse = | FetchedDaoKeys | { error: string }
+```
+
+or in the case of an error:
+
+```ts
+type FetchDaoKeysResponse = {
   error: string;
 };
 ```

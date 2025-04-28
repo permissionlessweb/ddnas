@@ -10,6 +10,28 @@ export type Env = {
 /**
  * Profile used when updating/saving.
  */
+export type UpdateDnasKey = {
+  /**
+   * Next profile nonce.
+   */
+  nonce: number
+  /**
+   * DAO address key is registered to 
+   */
+  chainId: string
+  /**
+   * DAO address key is registered to 
+   */
+  daoAddr: string
+  /**
+   * Profile NFT.
+   */
+  dnasKey: Partial<ProfileDnasKeyWithValue> | null
+}
+
+/**
+ * Profile used when updating/saving.
+ */
 export type UpdateProfile = {
   /**
    * Next profile nonce.
@@ -52,29 +74,58 @@ export type FetchedProfile = {
   chains: Record<
     string, // chain-id
     {
-      dnas: Record<
-        string,  // dao-addr able to use key 
-        {
-          keyMetadata: string
-          signatureLifespan: string
-          uploadLimit?: string
-        }
-      >,
-      daoMemberPublicKey: PublicKeyJson
-      daoMemberAddress: string
+      dnas: DnasKeyRecord,
+      publicKey: PublicKeyJson
+      address: string
 
     }
   >
 }
 
+// Body of fetch profile response.
+export type FetchDaoKeysResponse = | FetchedDaoKeys | { error: string }
+
+/**
+ * Profile used when fetching directly.
+ */
+export type FetchedDaoKeys = {
+  /**
+   * Map of chain ID and dao address to dnas key params and hash.
+   */
+  fetchedKeys: DnasKeyRecord,
+
+}
+
+export type DnasKeyRecord = Record<
+  string,
+  {
+    chainId: string
+    keyHash: string
+    keyOwner: string
+    keyMetadata: string
+    uploadLimit?: string
+  }
+>
+
 /**
 * Dnas key api & limit. no hash or key value
 */
 export type ResolvedDnasApiKey = {
+  /**
+   * Unique ID.
+   */
   profileId: number;
+  /**
+   * public description of s3 provider for specific key.
+   */
   type: string;
+  /**
+   * JSON encoded metadata about key
+   */
   keyMetadata: string;
-  signatureLifespan: string
+  /**
+   * MB limit for monthly use of key
+   */
   uploadLimit: string
 };
 
@@ -127,6 +178,11 @@ export type UpdateProfileRequest = {
   chainIds?: string[]
 }
 
+// Body of profile update request.
+export type UpdateDnasKeysRequest = {
+  dnas: Partial<Omit<UpdateDnasKey, 'nonce'>> & Pick<UpdateDnasKey, 'nonce' | 'daoAddr'>[]
+}
+
 // Body of profile update response.
 export type UpdateProfileResponse = | { success: true } | { error: string }
 
@@ -144,10 +200,10 @@ export type RegisterPublicKeyRequest = {
 
 // Body of register dnas api key request.
 export type RegisterDnasKeyRequest = {
-  dnasApiKeys: RequestBody<{
+  keys: {
     dao: string
     dnas: ProfileDnasKeyWithoutIds
-  }>[]
+  }[]
 }
 
 // Body of register public key response.
@@ -168,10 +224,9 @@ export type UseDnasKeyRequest = {
   dao: string;
   keyOwner: string;
   files: File[];
-  auth: {
-    chainId: string;
-    chainBech32Prefix: string;
-  }
+  auth: RequestBody<{
+    keyHash: string
+  }>
 }
 
 // Body of unregister public key response.
@@ -242,11 +297,17 @@ export type AuthorizedRequest<
   publicKey: PublicKey
 }
 
+export type CustomAuthorizedRequest<
+  Data extends Record<string, any> = Record<string, any>,
+> = IttyRequest & {
+  parsedBody: Data
+  publicKey: PublicKey
+}
+
 /// Add the id to the db row value to keep the value in the db private
 export type ProfileDnasKeyWithHash = ResolvedDnasApiKey & { apiKeyHash: string }
 /// Contains the base64 encoded api key value
 export type ProfileDnasKeyWithValue = ResolvedDnasApiKey & { apiKeyValue: string }
-
 export type ProfileDnasKeyWithoutIds = Omit<ProfileDnasKeyWithValue, 'id' | 'profileId'>;
 
 /**
@@ -273,7 +334,8 @@ export type DbRowProfileDnasApiKey = {
   chainId: string
   daoAddr: string
   keyMetadata: string
-  signatureLifespan: string
+  keyOwner: string
+  keyHash: string
   uploadLimit: string
   createdAt: Date
   updatedAt: Date
@@ -401,7 +463,7 @@ export interface SignMessageParams {
   accountNumber?: string;
   sequence?: string;
   fee?: {
-      amount: unknown[];
-      gas: string;
+    amount: unknown[];
+    gas: string;
   };
 }

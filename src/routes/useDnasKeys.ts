@@ -1,6 +1,6 @@
 import { fromBech32, toHex } from "@cosmjs/encoding";
 import { makePublicKey } from "../publicKeys";
-import { AuthorizedRequest, Env, FileMetadata, UseDnasKeyRequest, UseDnasKeyResponse } from "../types";
+import { AuthorizedRequest, CustomAuthorizedRequest, Env, FileMetadata, UseDnasKeyRequest, UseDnasKeyResponse } from "../types";
 import { getDnasParamms, getIsDaoMember } from "../utils/dao";
 import { getDnasApiKeyValue, getProfileDnasApiKeys, getProfileFromAddressHex, respond } from "../utils";
 import { JackalErrorResponse, JackalSuccessResponse } from "../utils/jackal";
@@ -14,40 +14,36 @@ const jackalApiAddFileToCollection = 'https://pinapi.jackalprotocol.com/api/file
 
 
 export const useDnasKeys = async (
-    request: AuthorizedRequest<UseDnasKeyRequest>,
+    request: CustomAuthorizedRequest<UseDnasKeyRequest>,
     env: Env
 ) => {
 
     const {
-        parsedBody: { data },
+        parsedBody: custom,
         publicKey,
     } = request;
+
     console.log("Starting useDnasKeys function");
-    console.log(data.files)
+    console.log(custom.auth)
 
     // Validate public key.
     const dnasChainpublicKey = makePublicKey(
-        data.auth.publicKeyType,
-        data.auth.publicKeyHex
+        custom.auth.data.auth.publicKeyType,
+        custom.auth.data.auth.publicKeyHex
     );
 
-    const signer = dnasChainpublicKey.getBech32Address(data.auth.chainBech32Prefix);
+    const signer = dnasChainpublicKey.getBech32Address(custom.auth.data.auth.chainBech32Prefix);
     console.log("signer", signer);
 
-    const daoMember = await getIsDaoMember(data.auth.chainId, signer, data.dao);
-    if (!daoMember) {
-        return respond(500, {
-            error: 'Addr is not member of DAO'
-        });
-    }
-
-    // confirm dao has widget enabled
-    const dnsParams = await getDnasParamms(data.auth.chainId, data.dao);
-    console.log("DNAS PARAMS FOUND", dnsParams);
+    // const daoMember = await getIsDaoMember(data.auth.chainId, signer, data.dao);
+    // if (!daoMember) {
+    //     return respond(500, {
+    //         error: 'Addr is not member of DAO'
+    //     });
+    // }
 
     // get profile for member 
-    const bech32Address = data.keyOwner.trim();
-    const addressHex = toHex(fromBech32(bech32Address).data);
+    const addressHex = custom.auth.data.auth.publicKeyHex
 
     const profile = await getProfileFromAddressHex(env, addressHex);
     if (!profile) {
@@ -60,7 +56,7 @@ export const useDnasKeys = async (
 
     // - key owner has registered a key to this dao
     const thisDnasApi = profileDnasApiKeys.find((key) =>
-        key.row.chainId === data.auth.chainId && key.row.daoAddr === data.dao
+        key.row.chainId === custom.auth.data.auth.chainId && key.row.keyHash === custom.auth.data.keyHash
     );
     if (!thisDnasApi) {
         return respond(500, {
@@ -81,7 +77,7 @@ export const useDnasKeys = async (
     try {
         // Create a new FormData for the outgoing request
         const outgoingForm = new FormData();
-        outgoingForm.append("files", data.files[0]);
+        outgoingForm.append("files", custom.files[0]);
 
         // Log what we're actually sending
         console.log("FormData entries:", outgoingForm);
