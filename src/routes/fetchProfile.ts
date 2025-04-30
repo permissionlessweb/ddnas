@@ -74,57 +74,64 @@ export const fetchProfile: RouteHandler<Request> = async (
     profile.name = profileRow.name?.trim() || null
 
     // Get chains and DNA API keys.
-    const publicKeysPerChain = await getProfilePublicKeyPerChain(env, profileRow.id)
+    const publicKeysPerChain = await getProfilePublicKeyPerChain(
+      env,
+      profileRow.id
+    )
     const ddnas = await getProfileDnasApiKeys(env, profileRow.id)
 
     // Process the ddnas to map them by daoAddr
-    const dnasByChainAndDaoAddr = ddnas.reduce<
-      Record<string, DnasKeyRecord>
-    >((acc, dna) => {
-      const chainIdKey = String(dna.row.chainId);
+    const dnasByChainAndDaoAddr = ddnas.reduce<Record<string, DnasKeyRecord>>(
+      (acc, dna) => {
+        const chainIdKey = String(dna.row.chainId)
 
-      // Initialize the chain record if it doesn't exist
-      if (!acc[chainIdKey]) {
-        acc[chainIdKey] = {};
-      }
+        // Initialize the chain record if it doesn't exist
+        if (!acc[chainIdKey]) {
+          acc[chainIdKey] = {}
+        }
 
-      // Add the DNAS record with the daoAddr as key
-      acc[chainIdKey][dna.row.daoAddr] = {
-        chainId: String(dna.row.chainId),
-        keyHash: String(dna.row.keyHash),
-        keyOwner: String(dna.row.keyOwner),
-        keyMetadata: String(dna.row.keyMetadata),
-        // Only include uploadLimit if it exists
-        ...(dna.row.uploadLimit !== undefined && dna.row.uploadLimit !== null
-          ? { uploadLimit: String(dna.row.uploadLimit) }
-          : {})
-      };
+        // Add the DNAS record with the daoAddr as key
+        acc[chainIdKey][dna.row.daoAddr] = {
+          chainId: String(dna.row.chainId),
+          keyHash: String(dna.row.keyHash),
+          keyOwner: String(dna.row.keyOwner),
+          keyMetadata: String(dna.row.keyMetadata),
+          // Only include uploadLimit if it exists
+          ...(dna.row.uploadLimit !== undefined && dna.row.uploadLimit !== null
+            ? { uploadLimit: String(dna.row.uploadLimit) }
+            : {}),
+        }
 
-      return acc;
-    }, {});
+        return acc
+      },
+      {}
+    )
 
     // Build the chains object
-    const accountPerChain = publicKeysPerChain.map(async ({ chainId, publicKey }) => {
-      const bech32Prefix = mustGetChain(chainId).bech32_prefix
-      const daoMemberAddress = await publicKey.getBech32Address(bech32Prefix)
+    const accountPerChain = publicKeysPerChain.map(
+      async ({ chainId, publicKey }) => {
+        const bech32Prefix = mustGetChain(chainId).bech32_prefix
+        const daoMemberAddress = await publicKey.getBech32Address(bech32Prefix)
 
-      return [
-        chainId,
-        {
-          dnas: dnasByChainAndDaoAddr[chainId] || {},
-          daoMemberPublicKey: publicKey.json,
-          daoMemberAddress,
-        },
-      ] as const
-    })
+        return [
+          chainId,
+          {
+            dnas: dnasByChainAndDaoAddr[chainId] || {},
+            daoMemberPublicKey: publicKey.json,
+            daoMemberAddress,
+          },
+        ] as const
+      }
+    )
 
     // Convert to object and filter out failures
     profile.chains = Object.fromEntries(
       (await Promise.allSettled(accountPerChain))
-        .filter((result): result is PromiseFulfilledResult<readonly [string, any]> =>
-          result.status === 'fulfilled'
+        .filter(
+          (result): result is PromiseFulfilledResult<readonly [string, any]> =>
+            result.status === 'fulfilled'
         )
-        .map(result => result.value)
+        .map((result) => result.value)
     )
 
     // Verify selected NFT still belongs to the public key before responding

@@ -1,23 +1,15 @@
-import { getOwnedNftImageUrl } from '../chains'
 import {
   AuthorizedRequest,
   Env,
   UpdateDnasKey,
   UpdateDnasKeysRequest,
-  UpdateProfile,
-  UpdateProfileRequest,
   UpdateProfileResponse,
 } from '../types'
 import {
-  KnownError,
-  NotOwnerError,
-  getPreferredProfilePublicKey,
   getProfileDnasApiKeys,
-  getProfileFromName,
   getProfileFromPublicKeyHex,
   removeDnasProfileApiKeys,
   saveDnasKeys,
-  saveProfile,
 } from '../utils'
 
 const ALLOWED_NAME_CHARS = /^[a-zA-Z0-9._]+$/
@@ -74,7 +66,7 @@ export const updateDnasKeys = async (
     nonce: 0,
     chainId: '',
     daoAddr: '',
-    dnasKey: null
+    dnasKey: null,
   }
   let daosToRemove: string[] = []
 
@@ -84,11 +76,10 @@ export const updateDnasKeys = async (
       existingProfileId = profileRow.id
       let profileDnasKeys = await getProfileDnasApiKeys(env, existingProfileId)
       if (profileDnasKeys) {
-        // find all keys being updated if any and prepare msg accordingly 
+        // find all keys being updated if any and prepare msg accordingly
         let keysToUpdate = requestBody.dnas.map((a) => {
           return profileDnasKeys.find((pdk) => {
-
-            if (pdk.row && pdk.row.daoAddr == a.daoAddr) {
+            if (pdk.row && pdk.row.daoAddr === a.daoAddr) {
               // check if we are removing key (api key value will be empty)
               // if we are , remove from db.
               // if we are not, update db with value
@@ -97,7 +88,6 @@ export const updateDnasKeys = async (
         })
         removeDnasProfileApiKeys(env, profileRow.id, daosToRemove)
       }
-
     }
   } catch (err) {
     console.error('Profile retrieval', err)
@@ -109,7 +99,6 @@ export const updateDnasKeys = async (
     })
   }
 
-
   // Validate nonce to prevent replay attacks.
   if (requestBody.dnas.nonce !== dnasKey.nonce) {
     return respond(401, {
@@ -120,7 +109,6 @@ export const updateDnasKeys = async (
   // Validate dnasApiKey update request
   // const { d, nft } = requestBody.dnas
 
-
   // Increment nonce to prevent replay attacks.
   dnasKey.nonce++
 
@@ -130,7 +118,7 @@ export const updateDnasKeys = async (
       env,
       publicKey,
       dnasKey,
-      existingProfileId ? existingProfileId : 0,
+      existingProfileId ? existingProfileId : 0
     )
   } catch (err) {
     console.error('Profile save', err)

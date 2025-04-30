@@ -1,22 +1,22 @@
 import { createCors } from 'itty-cors'
 import { Router } from 'itty-router'
 
+import { fetchAllDaoKeys } from './routes/fetchDaoKeys'
 import { fetchProfile } from './routes/fetchProfile'
 import { handleNonce } from './routes/nonce'
+import { registerDnasKeys } from './routes/registerDnas'
 import { registerPublicKeys } from './routes/registerPublicKeys'
 import { resolveProfile } from './routes/resolveProfile'
 import { searchProfiles } from './routes/searchProfiles'
 import { stats } from './routes/stats'
+import { unregisterDnasKeys } from './routes/unregisterDnasKeys'
 import { unregisterPublicKeys } from './routes/unregisterPublicKeys'
+import { updateDnasKeys } from './routes/updateDnasKeys'
 import { updateProfile } from './routes/updateProfile'
+import { useDnasKeys } from './routes/useDnasKeys'
 import { Env } from './types'
 import { KnownError } from './utils'
 import { authMiddleware, formDataAuthMiddleware } from './utils/auth'
-import { useDnasKeys } from './routes/useDnasKeys'
-import { registerDnasKeys } from './routes/registerDnas'
-import { unregisterDnasKeys } from './routes/unregisterDnasKeys'
-import { fetchAllDaoKeys } from './routes/fetchDaoKeys'
-import { updateDnasKeys } from './routes/updateDnasKeys'
 
 // Create CORS handlers.
 const { preflight, corsify } = createCors({

@@ -16,11 +16,11 @@ export type UpdateDnasKey = {
    */
   nonce: number
   /**
-   * DAO address key is registered to 
+   * DAO address key is registered to
    */
   chainId: string
   /**
-   * DAO address key is registered to 
+   * DAO address key is registered to
    */
   daoAddr: string
   /**
@@ -74,16 +74,15 @@ export type FetchedProfile = {
   chains: Record<
     string, // chain-id
     {
-      dnas: DnasKeyRecord,
+      dnas: DnasKeyRecord
       publicKey: PublicKeyJson
       address: string
-
     }
   >
 }
 
 // Body of fetch profile response.
-export type FetchDaoKeysResponse = | FetchedDaoKeys | { error: string }
+export type FetchDaoKeysResponse = FetchedDaoKeys | { error: string }
 
 /**
  * Profile used when fetching directly.
@@ -92,12 +91,11 @@ export type FetchedDaoKeys = {
   /**
    * Map of chain ID and dao address to dnas key params and hash.
    */
-  fetchedKeys: DnasKeyRecord,
-
+  fetchedKeys: DnasKeyRecord
 }
 
 export type DnasKeyRecord = Record<
-  string,
+  string, // dao address key is registered to
   {
     chainId: string
     keyHash: string
@@ -108,26 +106,26 @@ export type DnasKeyRecord = Record<
 >
 
 /**
-* Dnas key api & limit. no hash or key value
-*/
+ * Dnas key api & limit. no hash or key value
+ */
 export type ResolvedDnasApiKey = {
   /**
    * Unique ID.
    */
-  profileId: number;
+  profileId: number
   /**
    * public description of s3 provider for specific key.
    */
-  type: string;
+  type: string
   /**
    * JSON encoded metadata about key
    */
-  keyMetadata: string;
+  keyMetadata: string
   /**
    * MB limit for monthly use of key
    */
   uploadLimit: string
-};
+}
 
 /**
  * Profile used when searching/resolving by name on a specific chain.
@@ -166,7 +164,7 @@ export type ProfileNft = {
 export type ProfileNftWithImage = ProfileNft & { imageUrl: string }
 
 // Body of fetch profile response.
-export type FetchProfileResponse = | FetchedProfile | { error: string }
+export type FetchProfileResponse = FetchedProfile | { error: string }
 
 // Body of profile update request.
 export type UpdateProfileRequest = {
@@ -180,11 +178,12 @@ export type UpdateProfileRequest = {
 
 // Body of profile update request.
 export type UpdateDnasKeysRequest = {
-  dnas: Partial<Omit<UpdateDnasKey, 'nonce'>> & Pick<UpdateDnasKey, 'nonce' | 'daoAddr'>[]
+  dnas: Partial<Omit<UpdateDnasKey, 'nonce'>> &
+  Pick<UpdateDnasKey, 'nonce' | 'daoAddr'>[]
 }
 
 // Body of profile update response.
-export type UpdateProfileResponse = | { success: true } | { error: string }
+export type UpdateProfileResponse = { success: true } | { error: string }
 
 // Body of register public key request.
 export type RegisterPublicKeyRequest = {
@@ -207,24 +206,23 @@ export type RegisterDnasKeyRequest = {
 }
 
 // Body of register public key response.
-export type RegisterPublicKeyResponse = | { success: true } | { error: string }
+export type RegisterPublicKeyResponse = { success: true } | { error: string }
 
 // Body of register public key response.
-export type RegisterDnasKeyResponse = | { success: true } | { error: string }
+export type RegisterDnasKeyResponse = { success: true } | { error: string }
 
 // Body of unregister public key request.
 export type UnregisterPublicKeyRequest = { publicKeys: PublicKeyJson[] }
 
 // Body of unregister public key response.
-export type UnregisterPublicKeyResponse = | { success: true } | { error: string }
-
+export type UnregisterPublicKeyResponse = { success: true } | { error: string }
 
 // Body of making use of dao dnas api key request.
 export type UseDnasKeyRequest = {
-  dao: string;
-  keyOwner: string;
-  files: File[];
-  auth: RequestBody<{
+  files: File[]
+  sign: RequestBody<{
+    dao: string
+    keyOwner: string
     keyHash: string
   }>
 }
@@ -232,31 +230,29 @@ export type UseDnasKeyRequest = {
 // Body of unregister public key response.
 export type UseDnasKeyResponse =
   | {
-    success: true;
-    cid: string;
-    type: string;
-    id: string;
+    success: true
+    cid: string
+    type: string
+    id: string
   }
   | {
-    error: string;
-    status?: number;
-    details?: Record<string, unknown>;
-  };
-
+    error: string
+    status?: number
+    details?: Record<string, unknown>
+  }
 
 // Metadata about files without including the full content
 export type FileMetadata = {
   name: string
   size: number
   contentType: string
-  hash?: string          // Optional file hash for integrity verification
+  hash?: string // Optional file hash for integrity verification
 }
-
 
 // Body of unregister api keys request.
 export type UnregisterDnasKeysRequest = { daos: string[] }
 // Body of unregister public key response.
-export type UnregisterDnasKeyResponse = | { success: true } | { error: string }
+export type UnregisterDnasKeyResponse = { success: true } | { error: string }
 
 // Throws NotOwnerError if wallet does not own NFT or other more specific errors
 // if failed to retrieve image data.
@@ -267,9 +263,12 @@ export type GetOwnedNftImageUrlFunction = (
   tokenId: string
 ) => Promise<string | undefined>
 
-export type SearchProfilesResponse = | { profiles: ResolvedProfile[] } | { error: string }
-export type ResolveProfileResponse = | { resolved: ResolvedProfile } | { error: string }
-
+export type SearchProfilesResponse =
+  | { profiles: ResolvedProfile[] }
+  | { error: string }
+export type ResolveProfileResponse =
+  | { resolved: ResolvedProfile }
+  | { error: string }
 
 export type Auth = {
   type: string
@@ -307,12 +306,17 @@ export type CustomAuthorizedRequest<
 /// Add the id to the db row value to keep the value in the db private
 export type ProfileDnasKeyWithHash = ResolvedDnasApiKey & { apiKeyHash: string }
 /// Contains the base64 encoded api key value
-export type ProfileDnasKeyWithValue = ResolvedDnasApiKey & { apiKeyValue: string }
-export type ProfileDnasKeyWithoutIds = Omit<ProfileDnasKeyWithValue, 'id' | 'profileId'>;
+export type ProfileDnasKeyWithValue = ResolvedDnasApiKey & {
+  apiKeyValue: string
+}
+export type ProfileDnasKeyWithoutIds = Omit<
+  ProfileDnasKeyWithValue,
+  'id' | 'profileId'
+>
 
 /**
  * Profile database row.
-*/
+ */
 export type DbRowProfile = {
   id: number
   uuid: string
@@ -327,7 +331,7 @@ export type DbRowProfile = {
 
 /**
  * Profile public key database row.
-*/
+ */
 export type DbRowProfileDnasApiKey = {
   id: number
   profileId: number
@@ -353,7 +357,6 @@ export type DbRowProfilePublicKey = {
   createdAt: Date
   updatedAt: Date
 }
-
 
 /**
  * Profile public key chain preference database row.
@@ -426,10 +429,8 @@ export interface PublicKey extends PublicKeyJson {
   ): Promise<boolean>
 }
 
-
-
 export type SignedBody<
-  Data extends Record<string, unknown> | undefined = Record<string, any>
+  Data extends Record<string, unknown> | undefined = Record<string, any>,
 > = {
   data: {
     auth: Auth
@@ -437,9 +438,8 @@ export type SignedBody<
   signature: string
 }
 
-
 export type SignatureOptions<
-  Data extends Record<string, unknown> | undefined = Record<string, any>
+  Data extends Record<string, unknown> | undefined = Record<string, any>,
 > = {
   type: string
   nonce: number
@@ -456,14 +456,14 @@ export type SignatureOptions<
 }
 
 export interface SignMessageParams {
-  offlineSignerAmino: OfflineAminoSigner;
-  address: string;
-  chainId: string;
-  messageToSign: unknown;
-  accountNumber?: string;
-  sequence?: string;
+  offlineSignerAmino: OfflineAminoSigner
+  address: string
+  chainId: string
+  messageToSign: unknown
+  accountNumber?: string
+  sequence?: string
   fee?: {
-    amount: unknown[];
-    gas: string;
-  };
+    amount: unknown[]
+    gas: string
+  }
 }

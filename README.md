@@ -5,7 +5,7 @@
 ## TODO:
 - support for tracking key usage by dao member
 - support for key owner to allow/deny dao members
-- register key key to secret network smart contract (hash of key is registered, signed by dao  member when used to  access from secret contract state).
+- register key key to secret network smart contract (hash of key is registered, signed by dao member when used to access from secret contract state).
 - any time a dao member leaves or the api is used, we need to remove their api key if it exists
 - profileID as variable to register exostomg from external profile source
 
@@ -586,23 +586,24 @@ located in [src/index.ts](./src/utils/auth.ts#L20) around line 20.
 
 ```ts
 export type UseDnasKeyRequest = {
-  dnas: {
+  sign: {
+    type: string;
+    nonce: number;
+    chainId: string;
+    address: string;
+    publicKey: string;
     data: {
       dao: string;
       keyOwner: string;
-      files: File[];
-      auth: {
-        type: string;
-        nonce: number;
-        chainId: string;
-        chainFeeDenom: string;
-        chainBech32Prefix: string;
-        publicKeyType: string;
-        publicKeyHex: string;
-      };
+      keyHash: string;
     };
     signature: string;
   };
+  files: Array<{
+    name: string;
+    url: string;
+    mimetype: string;
+  }>;
 };
 ```
 
@@ -614,7 +615,7 @@ type UseDnasKeyResponse = {
     cid: string;
     type: string;
     id: string;
-};
+}[];
 ```
 
 or in the case of an error:
@@ -628,8 +629,12 @@ type UseDnasKeyResponse = {
 ```
 This route lets the user make use of dns api key registered by DAO members.
 
+The following must be provided in the request:
+- the sha256sum hash of the API Key selected to use
+- the DAO address the key is registered to 
+- the key owner bech32 address that registered the key to the API
 
-The dao and the bech32 addr of a dao member that has registerd an api must be provided, in order to make use of the api key to upload. The  server asserts that the key that is signing this message is a  part of the dao, and also that the dao has enabled the ddnas widget.
+This is included with the array of files to upload.
 
 ### `GET /search/:chainId/:namePrefix`
 
