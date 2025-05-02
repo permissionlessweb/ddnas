@@ -87,18 +87,13 @@ export type FetchDaoKeysResponse = FetchedDaoKeys | { error: string }
 /**
  * Profile used when fetching directly.
  */
-export type FetchedDaoKeys = {
-  /**
-   * Map of chain ID and dao address to dnas key params and hash.
-   */
-  fetchedKeys: DnasKeyRecord
-}
+export type FetchedDaoKeys = DnasKeyRecord
 
 export type DnasKeyRecord = Record<
   string, // dao address key is registered to
   {
     chainId: string
-    keyHash: string
+    apiKeyHash: string
     keyOwner: string
     keyMetadata: string
     uploadLimit?: string
@@ -223,7 +218,7 @@ export type UseDnasKeyRequest = {
   sign: RequestBody<{
     dao: string
     keyOwner: string
-    keyHash: string
+    // keyHash: string
   }>
 }
 
@@ -339,7 +334,7 @@ export type DbRowProfileDnasApiKey = {
   daoAddr: string
   keyMetadata: string
   keyOwner: string
-  keyHash: string
+  apiKeyHash: string
   uploadLimit: string
   createdAt: Date
   updatedAt: Date

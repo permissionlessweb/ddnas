@@ -3,6 +3,7 @@
 
 
 ## TODO:
+- add public key for chain id if new key being registered in for a dao on a chain-id not yet registered
 - support for tracking key usage by dao member
 - support for key owner to allow/deny dao members
 - register key key to secret network smart contract (hash of key is registered, signed by dao member when used to access from secret contract state).

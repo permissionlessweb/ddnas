@@ -16,6 +16,7 @@ import {
   UpdateDnasKey,
   UpdateProfile,
 } from '../types'
+import { fromBech32, toBase64 } from '@cosmjs/encoding'
 
 /**
  * Get the profile for a given name.
@@ -271,28 +272,10 @@ export const getDnsApiKeysByDaoAddr = async (
       }>()
   ).results
 
-  return rows.reduce(
-    (acc, row) => {
-      // Convert apiKeyHash to a hexadecimal string if needed
-      const keyHash = row.apiKeyHash.toString('hex')
-      const compositeKey = `${row.chainId}_${row.daoAddr}`
+  console
 
-      // Ensure all required fields are strings
-      acc.fetchedKeys[compositeKey] = {
-        chainId: String(row.chainId),
-        keyOwner: String(), // TODO: populate value
-        keyHash: keyHash,
-        keyMetadata: String(row.keyMetadata),
-        // Only add uploadLimit if it exists, and ensure it's a string
-        ...(row.uploadLimit !== undefined && row.uploadLimit !== null
-          ? { uploadLimit: String(row.uploadLimit) }
-          : {}),
-      }
-
-      return acc
-    },
-    { fetchedKeys: {} } as FetchedDaoKeys
-  )
+  const res = await processProfileDnasRows(env, rows)
+  return res
 }
 
 /**
@@ -320,7 +303,7 @@ export const getProfilePublicKeyPerChain = async (
       .bind(profileId)
       .all<
         Pick<DbRowProfilePublicKeyChainPreference, 'chainId'> &
-          Pick<DbRowProfilePublicKey, 'type' | 'publicKeyHex'>
+        Pick<DbRowProfilePublicKey, 'type' | 'publicKeyHex'>
       >()
   ).results
 
@@ -526,25 +509,25 @@ export const addProfilePublicKey = async (
     // If not attached to the current profile, attach it.
     !currentProfile || currentProfile.id !== profileId
       ? await env.DB.prepare(
-          `
+        `
           INSERT INTO profile_public_keys (profileId, type, publicKeyHex, addressHex)
           VALUES (?1, ?2, ?3, ?4)
           ON CONFLICT DO NOTHING
           RETURNING id
           `
-        )
-          .bind(profileId, publicKey.type, publicKey.hex, publicKey.addressHex)
-          .first<Pick<DbRowProfilePublicKey, 'id'>>()
+      )
+        .bind(profileId, publicKey.type, publicKey.hex, publicKey.addressHex)
+        .first<Pick<DbRowProfilePublicKey, 'id'>>()
       : // Otherwise just find the existing public key.
-        await env.DB.prepare(
-          `
+      await env.DB.prepare(
+        `
           SELECT id
           FROM profile_public_keys
           WHERE type = ?1 AND publicKeyHex = ?2
           `
-        )
-          .bind(publicKey.type, publicKey.hex)
-          .first<Pick<DbRowProfilePublicKey, 'id'>>()
+      )
+        .bind(publicKey.type, publicKey.hex)
+        .first<Pick<DbRowProfilePublicKey, 'id'>>()
   if (!profilePublicKeyRow) {
     throw new KnownError(500, 'Failed to save or retrieve profile public key.')
   }
@@ -593,6 +576,7 @@ export const addDnsProfileApiKey = async (
       }
 
       const apiKeyHash = SHA256(apiKey.apiKeyValue)
+      const base64Hash = Buffer.from(apiKey.apiKeyValue, 'utf8').toString('base64')
 
       // Insert new DNAS API key record
       const dnasApiKeyRow = await env.DB.prepare(
@@ -622,7 +606,7 @@ export const addDnsProfileApiKey = async (
           publicKey.type,
           apiKey.keyMetadata || JSON.stringify({}),
           apiKey.uploadLimit || null,
-          apiKeyHash,
+          apiKeyHash.toString(),
           chainId,
           daoAddr
         )
@@ -648,7 +632,7 @@ export const addDnsProfileApiKey = async (
         RETURNING id
       `
       )
-        .bind(dnasApiKeyRow.id, apiKey.apiKeyValue)
+        .bind(dnasApiKeyRow.id, base64Hash)
         .first<{ id: number }>()
 
       if (!apiKeyRow) {
@@ -778,7 +762,9 @@ export const removeDnasProfileApiKeys = async (
   daos: string[]
 ) => {
   // Get all api key rows attached to the profile.
-  const dnasApiKeyRows = await getProfileDnasApiKeys(env, profileId)
+  const dnasApiKeyRows: {
+    row: DbRowProfileDnasApiKey
+  }[] = await getProfileDnasApiKeys(env, profileId)
 
   // Otherwise remove just these daos dnas api keys.
   const dnasApiKeyRowsToDelete = daos.flatMap(
@@ -840,4 +826,42 @@ export const getDnasApiKeyValue = async (
     )
     throw new KnownError(500, 'Failed to retrieve API key value.', error)
   }
+}
+
+
+async function processProfileDnasRows(env: Env, rows: {
+  profileId: number;
+  keyMetadata: string;
+  uploadLimit?: string;
+  apiKeyHash: Buffer;
+  chainId: string;
+  daoAddr: string;
+}[]) {
+  const fetchedKeys: FetchedDaoKeys = {};
+
+  console.log("rows", rows)
+  // Process each row sequentially with await
+  for (const row of rows) {
+
+    // Convert apiKeyHash to a hexadecimal string if needed
+    const keyHash = row.apiKeyHash.toString();
+    const compositeKey = `${row.chainId}_${row.daoAddr}`;
+
+    // Now we can properly await this function
+    const keyOwner = await getProfilePublicKeys(env, row.profileId);
+
+    // Ensure all required fields are strings
+    fetchedKeys[compositeKey] = {
+      chainId: String(row.chainId),
+      keyOwner: keyOwner[0].publicKey.hex,
+      apiKeyHash: keyHash,
+      keyMetadata: String(row.keyMetadata),
+      // Only add uploadLimit if it exists, and ensure it's a string
+      ...(row.uploadLimit !== undefined && row.uploadLimit !== null
+        ? { uploadLimit: String(row.uploadLimit) }
+        : {}),
+    };
+  }
+  console.log("fetchedKeys:", fetchedKeys)
+  return fetchedKeys;
 }

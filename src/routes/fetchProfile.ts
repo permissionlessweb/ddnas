@@ -80,39 +80,59 @@ export const fetchProfile: RouteHandler<Request> = async (
     )
     const ddnas = await getProfileDnasApiKeys(env, profileRow.id)
 
+
     // Process the ddnas to map them by daoAddr
-    const dnasByChainAndDaoAddr = ddnas.reduce<Record<string, DnasKeyRecord>>(
-      (acc, dna) => {
-        const chainIdKey = String(dna.row.chainId)
+    const dnasByChainAndDaoAddr: Record<string, DnasKeyRecord> = {};
 
-        // Initialize the chain record if it doesn't exist
-        if (!acc[chainIdKey]) {
-          acc[chainIdKey] = {}
+    // Loop through each DNAS entry
+    for (const dna of ddnas) {
+      const chainIdKey = String(dna.row.chainId);
+      const exists = !dnasByChainAndDaoAddr[chainIdKey]
+      // console.log("exists", exists)
+      // console.log("publicKeysPerChain", publicKeysPerChain)
+
+      // Initialize the chain record if it doesn't exist
+      if (exists) {
+        dnasByChainAndDaoAddr[chainIdKey] = {};
+      }
+      // console.log("Processing DNAS entry:", JSON.stringify(dna.row, null, 2));
+      const matchingPublicKeyRecord = publicKeysPerChain.find(
+        ({ chainId }) => {
+          // console.log("chainId:", chainId)
+          // console.log("chainIdKey:", chainIdKey)
+          return chainId === chainIdKey
         }
+      );
+      let keyOwner;
+      console.log(matchingPublicKeyRecord)
+      if (matchingPublicKeyRecord) {
+        const { chainId, publicKey } = matchingPublicKeyRecord;
+        const bech32Prefix = mustGetChain(chainId).bech32_prefix;
+        const daoMemberAddress = await publicKey.getBech32Address(bech32Prefix);
+        // console.log("daoMemberAddress:", daoMemberAddress);
+        keyOwner = daoMemberAddress;
+      } else {
+        keyOwner = undefined;
+      }
 
-        // Add the DNAS record with the daoAddr as key
-        acc[chainIdKey][dna.row.daoAddr] = {
-          chainId: String(dna.row.chainId),
-          keyHash: String(dna.row.keyHash),
-          keyOwner: String(dna.row.keyOwner),
-          keyMetadata: String(dna.row.keyMetadata),
-          // Only include uploadLimit if it exists
-          ...(dna.row.uploadLimit !== undefined && dna.row.uploadLimit !== null
-            ? { uploadLimit: String(dna.row.uploadLimit) }
-            : {}),
-        }
-
-        return acc
-      },
-      {}
-    )
+      // Add the DNAS record with the daoAddr as key
+      dnasByChainAndDaoAddr[chainIdKey][dna.row.daoAddr] = {
+        chainId: dna.row.chainId,
+        apiKeyHash: dna.row.apiKeyHash, // Use the property exactly as it appears in the input
+        keyOwner: keyOwner || '',
+        keyMetadata: dna.row.keyMetadata,
+        // Only include uploadLimit if it exists
+        ...(dna.row.uploadLimit !== undefined && dna.row.uploadLimit !== null
+          ? { uploadLimit: String(dna.row.uploadLimit) }
+          : {}),
+      };
+    }
 
     // Build the chains object
     const accountPerChain = publicKeysPerChain.map(
       async ({ chainId, publicKey }) => {
         const bech32Prefix = mustGetChain(chainId).bech32_prefix
         const daoMemberAddress = await publicKey.getBech32Address(bech32Prefix)
-
         return [
           chainId,
           {

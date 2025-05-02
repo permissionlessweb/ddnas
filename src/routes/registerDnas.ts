@@ -33,9 +33,7 @@ export const registerDnasKeys = async (
       status,
     })
   try {
-    console.log(auth)
-    console.log(keys)
-
+ 
     if (!keys || !Array.isArray(keys)) {
       throw new Error('Keys must be provided as an array')
     }

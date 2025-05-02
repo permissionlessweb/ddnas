@@ -50,8 +50,8 @@ export const useDnasKeys = async (
     })
   }
 
-  // get profile for keyOwner requested
-  const addressHex = toHex(fromBech32(custom.sign.data.keyOwner).data)
+  // get profile for keyOwner requested (expected to already be hex string from decoded bech32 address)
+  const addressHex = custom.sign.data.keyOwner
 
   const profile = await getProfileFromAddressHex(env, addressHex)
   if (!profile) {
@@ -66,7 +66,7 @@ export const useDnasKeys = async (
   const thisDnasApi = profileDnasApiKeys.find(
     (key) =>
       key.row.chainId === custom.sign.data.auth.chainId &&
-      key.row.keyHash === custom.sign.data.keyHash &&
+      // key.row.apiKeyHash === custom.sign.data.keyHash &&
       key.row.daoAddr === custom.sign.data.dao
   )
 

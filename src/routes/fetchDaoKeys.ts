@@ -15,8 +15,10 @@ export const fetchAllDaoKeys: RouteHandler<Request> = async (
   let addressHex = request.params?.addressHex?.trim()
   // via bech32 address
   const bech32Address = request.params?.bech32Address?.trim()
+  // console.log("addressHex", addressHex)
+  // console.log("bech32Address", bech32Address)
 
-  let profileRow: FetchedDaoKeys | null = null
+  let daoKeys: FetchedDaoKeys | null = null
   try {
     // If no public key nor address hex is set, get address hex from bech32
     // address.
@@ -24,12 +26,9 @@ export const fetchAllDaoKeys: RouteHandler<Request> = async (
       addressHex = toHex(fromBech32(bech32Address).data)
     }
     if (addressHex) {
-      profileRow = await getDnsApiKeysByDaoAddr(env, addressHex)
+      daoKeys = await getDnsApiKeysByDaoAddr(env, addressHex)
     }
-    // if (publicKey) {
-    //     profileRow = await getDnsApiKeysByDao(env, publicKey)
-    // } else if (addressHex) {
-    // }
+    // console.log("daoKeys:", daoKeys)
   } catch (err) {
     console.error('Profile retrieval', err)
 
@@ -41,8 +40,8 @@ export const fetchAllDaoKeys: RouteHandler<Request> = async (
   }
 
   // create array object of keys loaded by
-  if (profileRow) {
-    return respond(200, profileRow)
+  if (daoKeys) {
+    return respond(200, daoKeys)
   } else {
     return respond(500, {
       error: 'Failed to retrieve profile:',
