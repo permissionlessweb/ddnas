@@ -16,7 +16,7 @@ import {
   UpdateDnasKey,
   UpdateProfile,
 } from '../types'
-import { fromBech32, toBase64 } from '@cosmjs/encoding'
+import { fromBech32, toBase64, toHex } from '@cosmjs/encoding'
 
 /**
  * Get the profile for a given name.
@@ -243,7 +243,7 @@ export const getProfilePublicKeys = async (
 /**
  * Get the api key & metadata for each dao address
  */
-export const getDnsApiKeysByDaoAddr = async (
+export const getDnsApiKeysByDaoAddrHex = async (
   env: Env,
   daoAddr: string
 ): Promise<FetchedDaoKeys> => {
@@ -363,7 +363,7 @@ export const saveDnasKeys = async (
           dnasKey.dnasKey?.uploadLimit || null,
           dnasKey.dnasKey?.apiKeyValue, // should exist as empty triggers removal of key from dao
           dnasKey.chainId,
-          dnasKey.daoAddr
+          toHex(fromBech32(dnasKey.daoAddr).data)
         )
         .first<DbRowProfileDnasApiKey>()
       return updatedDnasKeyRow
@@ -553,7 +553,7 @@ export const addDnsProfileApiKey = async (
   profileId: number,
   publicKey: PublicKey,
   apiKey: ProfileDnasKeyWithValue,
-  daos: string[]
+  compositeKey: string[]
 ) => {
   try {
     // Get the current profile attached to the public key
@@ -561,11 +561,11 @@ export const addDnsProfileApiKey = async (
 
     // If the api key is attached to a different profile, remove it
     if (currentProfile && currentProfile.id !== profileId) {
-      await removeDnasProfileApiKeys(env, currentProfile.id, daos)
+      await removeDnasProfileApiKeys(env, currentProfile.id, compositeKey)
     }
 
     // For each DAO, create/update the DNAS API key entry
-    for (const dao of daos) {
+    for (const dao of compositeKey) {
       const [chainId, daoAddr] = dao.split(':')
 
       if (!chainId || !daoAddr) {
@@ -608,7 +608,7 @@ export const addDnsProfileApiKey = async (
           apiKey.uploadLimit || null,
           apiKeyHash.toString(),
           chainId,
-          daoAddr
+          toHex(fromBech32(daoAddr).data)
         )
         .first<{ id: number }>()
 

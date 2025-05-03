@@ -2,7 +2,7 @@ import { fromBech32, toHex } from '@cosmjs/encoding'
 import { Request, RouteHandler } from 'itty-router'
 
 import { Env, FetchDaoKeysResponse, FetchedDaoKeys } from '../types'
-import { getDnsApiKeysByDaoAddr } from '../utils'
+import { getDnsApiKeysByDaoAddrHex } from '../utils'
 
 export const fetchAllDaoKeys: RouteHandler<Request> = async (
   request,
@@ -26,7 +26,7 @@ export const fetchAllDaoKeys: RouteHandler<Request> = async (
       addressHex = toHex(fromBech32(bech32Address).data)
     }
     if (addressHex) {
-      daoKeys = await getDnsApiKeysByDaoAddr(env, addressHex)
+      daoKeys = await getDnsApiKeysByDaoAddrHex(env, addressHex)
     }
     // console.log("daoKeys:", daoKeys)
   } catch (err) {

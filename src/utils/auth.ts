@@ -31,7 +31,6 @@ export const authMiddleware = async (
     if (err instanceof Response) {
       return err
     }
-
     // Rethrow err to be caught by global error handler.
     throw err
   }

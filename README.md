@@ -353,24 +353,14 @@ type RegisterDnasKeyRequest = {
   data: {
     apiKeys: {
       data: {
-        daos: string;  
+        dao: string; // bech32 address of DAO
         dnasKey: {
           provider_label: string; // key label to display
           signature_lifespan: string; // duration of key to persist (defaults to 30 days)
           upload_limit?: number; // optional limit of MB a dao member can use 
           base64_key:string;
         },
-        auth: {
-          type: string;
-          nonce: number;
-          chainId: string;
-          chainFeeDenom: string;
-          chainBech32Prefix: string;
-          publicKeyType: string;
-          publicKeyHex: string;
-        };
       };
-      signature: string;
     }[];
     auth: {
       type: string;

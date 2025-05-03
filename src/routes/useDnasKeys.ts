@@ -88,10 +88,14 @@ export const useDnasKeys = async (
   try {
     // Create a new FormData for the outgoing request
     const outgoingForm = new FormData()
-    outgoingForm.append('files', custom.files[0])
+    custom.files.forEach((file, index) => {
+      outgoingForm.append(`files[${index}]`, file);
+    });
 
     // Log what we're actually sending
-    console.log('FormData entries:', outgoingForm)
+    for (const [key, value] of outgoingForm.entries()) {
+      console.log(`FormData entry: ${key}=${value}`);
+    }
     // @ts-ignore: FormData has forEach in browsers but might not be recognized in your environment
 
     // Better error handling with async/await

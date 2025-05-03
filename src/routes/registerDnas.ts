@@ -20,9 +20,7 @@ import {
 
 export const registerDnasKeys = async (
   {
-    parsedBody: {
-      data: { auth, keys },
-      signature,
+    parsedBody: { data: { auth, keys }, signature,
     },
     publicKey,
   }: AuthorizedRequest<RegisterDnasKeyRequest>,
@@ -33,21 +31,15 @@ export const registerDnasKeys = async (
       status,
     })
   try {
- 
     if (!keys || !Array.isArray(keys)) {
       throw new Error('Keys must be provided as an array')
     }
 
-    await Promise.all(
-      keys
-        .filter((key) => {
-          // Add additional logging for debugging
-          console.log('Processing key for DAO:', key.dao)
-          return verifyDNASWidgetEnabledAndDaoMember(key.dao, auth)
-        })
-        .map((key) =>
-          verifyRequestBodyAndGetPublicKey({ data: { auth, keys }, signature })
-        )
+    await Promise.all(keys.filter((key) => {
+      return verifyDNASWidgetEnabledAndDaoMember(key.dao, auth)
+    })
+      .map((key) => verifyRequestBodyAndGetPublicKey({ data: { auth, key }, signature })
+      )
     )
   } catch (err) {
     if (err instanceof KnownError) {
@@ -86,7 +78,7 @@ export const registerDnasKeys = async (
       // will save api keys to profile after validate & increment nonce
     }
     // Log after successful DB operation
-    console.log('Profile saved successfully:', _profile)
+    // console.log('Profile saved successfully:', _profile)
     profile = _profile
   } catch (err) {
     console.error('Error saving profile:', err)
