@@ -303,7 +303,7 @@ export const getProfilePublicKeyPerChain = async (
       .bind(profileId)
       .all<
         Pick<DbRowProfilePublicKeyChainPreference, 'chainId'> &
-          Pick<DbRowProfilePublicKey, 'type' | 'publicKeyHex'>
+        Pick<DbRowProfilePublicKey, 'type' | 'publicKeyHex'>
       >()
   ).results
 
@@ -509,25 +509,25 @@ export const addProfilePublicKey = async (
     // If not attached to the current profile, attach it.
     !currentProfile || currentProfile.id !== profileId
       ? await env.DB.prepare(
-          `
+        `
           INSERT INTO profile_public_keys (profileId, type, publicKeyHex, addressHex)
           VALUES (?1, ?2, ?3, ?4)
           ON CONFLICT DO NOTHING
           RETURNING id
           `
-        )
-          .bind(profileId, publicKey.type, publicKey.hex, publicKey.addressHex)
-          .first<Pick<DbRowProfilePublicKey, 'id'>>()
+      )
+        .bind(profileId, publicKey.type, publicKey.hex, publicKey.addressHex)
+        .first<Pick<DbRowProfilePublicKey, 'id'>>()
       : // Otherwise just find the existing public key.
-        await env.DB.prepare(
-          `
+      await env.DB.prepare(
+        `
           SELECT id
           FROM profile_public_keys
           WHERE type = ?1 AND publicKeyHex = ?2
           `
-        )
-          .bind(publicKey.type, publicKey.hex)
-          .first<Pick<DbRowProfilePublicKey, 'id'>>()
+      )
+        .bind(publicKey.type, publicKey.hex)
+        .first<Pick<DbRowProfilePublicKey, 'id'>>()
   if (!profilePublicKeyRow) {
     throw new KnownError(500, 'Failed to save or retrieve profile public key.')
   }
@@ -576,9 +576,9 @@ export const addDnsProfileApiKey = async (
       }
 
       const apiKeyHash = SHA256(apiKey.apiKeyValue)
-      const base64Hash = Buffer.from(apiKey.apiKeyValue, 'utf8').toString(
-        'base64'
-      )
+      const base64Hash = Buffer.from(apiKey.apiKeyValue, 'utf8').toString('base64')
+      console.log("base64Hash:", base64Hash)
+      console.log("daoAddr:", daoAddr)
 
       // Insert new DNAS API key record
       const dnasApiKeyRow = await env.DB.prepare(

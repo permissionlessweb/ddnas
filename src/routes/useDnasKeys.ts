@@ -11,6 +11,7 @@ import {
   getDnasApiKeyValue,
   getProfileDnasApiKeys,
   getProfileFromAddressHex,
+  getProfileFromPublicKeyHex,
   respond,
   verifyRequestBodyAndGetPublicKey,
 } from '../utils'
@@ -34,11 +35,11 @@ export const useDnasKeys = async (
   if (!formData) {
     return new Response('Missing form data', { status: 400 })
   }
-  // console.log('Received formData:', formData)
+  console.log('Received formData:', formData)
 
-  let signedBodyString = formData.get('auth_message')?.toString()
+  let signedBodyString = formData.get('sign')?.toString()
   if (!signedBodyString) {
-    return new Response('Missing auth_message in form data', { status: 400 })
+    return new Response('Missing auth context indexed with "sign" in form data', { status: 400 })
   }
   // console.log('authmsg:', signedBodyString)
 
@@ -83,9 +84,10 @@ export const useDnasKeys = async (
   }
 
   // get profile for keyOwner requested (expected to already be hex string from decoded bech32 address)
-  const addressHex = toHex(fromBech32(custom.keyOwner).data)
+  const addressHex = custom.keyOwner// toHex(fromBech32(custom.keyOwner).data)
+  console.log(addressHex)
 
-  const profile = await getProfileFromAddressHex(env, addressHex)
+  const profile = await getProfileFromPublicKeyHex(env, addressHex)
   if (!profile) {
     return respond(500, {
       error: 'Dao member has not registered a profile for Dnas support.',
@@ -107,7 +109,6 @@ export const useDnasKeys = async (
       error: 'Dao member has no dnas api key for this DAO.',
     })
   }
-  // console.log('THIS DAO SPECIFIC DNAS API KEY FOUND', thisDnasApi)
 
   // get the actual api key
   let apiKey = await getDnasApiKeyValue(env, thisDnasApi.row.id)
@@ -116,6 +117,7 @@ export const useDnasKeys = async (
       error: 'Unable to resolve apiKey.',
     })
   }
+  console.log('THIS DAO SPECIFIC DNAS API KEY FOUND:', apiKey)
 
   try {
     // Create a new FormData for the outgoing request
@@ -136,8 +138,9 @@ export const useDnasKeys = async (
 
     // Log what we're actually sending
     for (const [key, value] of outgoingForm.entries()) {
-      // console.log(`FormData entry: ${key}=${value}`)
+      console.log(`FormData entry: ${key}=${value}`)
     }
+
     // @ts-ignore: FormData has forEach in browsers but might not be recognized in your environment
     const encodedApiKey = Buffer.from(apiKey, 'base64').toString('utf-8')
     // console.log(encodedApiKey)
@@ -151,9 +154,10 @@ export const useDnasKeys = async (
     }
     // console.log('got this far, we are hitting the jackal api...')
     const response = await fetch(jackalApiUploadMultipleFileBase, options)
+
     if (response.ok) {
       const res: JackalSuccessResponse = await response.json()
-      // console.log(res)
+      console.log(res)
       return respond(200, {
         success: true,
         cid: res.cid,

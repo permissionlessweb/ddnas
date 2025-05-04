@@ -57,7 +57,7 @@ export const registerDnasKeys = async (
 
   // Find or create profile.
   let profile: DbRowProfile
-  // console.log('FETCHING PROFILE VIA publicKey.hex:', publicKey.hex)
+  console.log('FETCHING PROFILE VIA publicKey.hex:', publicKey.hex)
   try {
     let _profile: DbRowProfile | null = await getProfileFromPublicKeyHex(
       env,

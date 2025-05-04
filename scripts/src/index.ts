@@ -43,12 +43,12 @@ async function main() {
     const daoMember1Mnemonic =
       process.env.DAO_MEMBER1_MNEMONIC ||
       'major garlic pulse siren arm identify all oval dumb tissue moral upon poverty erase judge either awkward metal antenna grid crack pioneer panther bullet'
-      const daoMember2Mnemonic =
+    const daoMember2Mnemonic =
       process.env.DAO_MEMBER2_MNEMONIC ||
       'finish custom duty any destroy sibling zone brain legend fitness subject token high skirt festival define result vacant pepper vast element present direct bright'
-      const notMemberMnemonic =
-        process.env.DAO_MEMBER1_MNEMONIC ||
-        'unhappy token earn risk cushion dance robot filter task october giggle funny'
+    const notMemberMnemonic =
+      process.env.DAO_MEMBER1_MNEMONIC ||
+      'unhappy token earn risk cushion dance robot filter task october giggle funny'
 
     const member1Wallet = await initializeWallet(daoMember1Mnemonic)
     const member2Wallet = await initializeWallet(daoMember2Mnemonic)
@@ -103,13 +103,14 @@ async function main() {
     // console.log('Register profile 1 response:', profile2Response)
 
     //  Save DNAS key to DAO for member 1
-    registerDnas(
+    const registerRes = await registerDnas(
       member1Wallet,
       member1HexPublicKey,
       member1Address,
       daoAddr,
       apiKeyValue
     )
+    console.log('Register profile 1 DNAS Key response:', registerRes)
 
     //  2. Get fetch saved profile for profile id
     // console.log('\n2. Querying profiles via public key hex...')
@@ -481,7 +482,7 @@ async function uploadFilesToDao(
     // console.log('Sending file upload request...')
 
     // Add the signed message as JSON
-    formData.append('auth_message', JSON.stringify(signedBody))
+    formData.append('sign', JSON.stringify(signedBody))
 
     // Add each file with a predictable key
     fileObjects.forEach((file, index) => {
