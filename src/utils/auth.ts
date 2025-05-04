@@ -4,13 +4,7 @@ import { getIsDaoMember } from './dao'
 import { KnownError } from './error'
 import { objectMatchesStructure } from './objectMatchesStructure'
 import { makePublicKey } from '../publicKeys'
-import {
-  Auth,
-  AuthorizedRequest,
-  CustomAuthorizedRequest,
-  PublicKey,
-  RequestBody,
-} from '../types'
+import { Auth, AuthorizedRequest, PublicKey, RequestBody } from '../types'
 
 // Middleware to protect routes with authentication. If it does not return, the
 // request is authorized. If successful, the `parsedBody` field will be set on
@@ -33,66 +27,6 @@ export const authMiddleware = async (
     }
     // Rethrow err to be caught by global error handler.
     throw err
-  }
-}
-
-// Middleware specifically for handling authentication with multipart/form-data
-// This will be used only for the /use-dnas endpoint
-export const formDataAuthMiddleware = async (
-  request: CustomAuthorizedRequest
-): Promise<Response | void> => {
-  try {
-    console.log('request:', request)
-
-    // Grab form data from request
-    const formData: FormData = await request.formData?.()
-    if (!formData) {
-      return new Response('Missing form data', { status: 400 })
-    }
-
-    console.log('Received formData:', formData)
-    let signedBodyString = formData.get('auth_message')?.toString()
-
-    console.log('authmsg:', signedBodyString)
-
-    if (!signedBodyString) {
-      return new Response('Missing auth_message in form data', { status: 400 })
-    }
-
-    // Parse the signed body string into a RequestBody object
-    let parsedBody: RequestBody
-    try {
-      parsedBody = JSON.parse(signedBodyString)
-    } catch (e) {
-      console.error('Failed to parse auth_message as JSON:', e)
-      return new Response('Invalid auth_message format', { status: 400 })
-    }
-    // Now verify the parsed RequestBody and get the public key
-    const publicKey = await verifyRequestBodyAndGetPublicKey(parsedBody)
-
-    // Validate signature and extract public key
-    // This part depends on your validation logic, but might look like:
-    if (!publicKey) {
-      return new Response('Invalid signature', { status: 401 })
-    }
-
-    // // Attach the parsed body and public key to the request for downstream handlers
-    request.parsedBody = parsedBody
-    request.publicKey = publicKey
-
-    // create new formdata and pass any files into the new formdataq
-    // Validate public key.
-
-    console.log('publicKeyformed to be verified:', publicKey)
-
-    // If all is valid, add parsed body to request and do not return to allow
-    // continuing.
-    request.parsedBody = parsedBody
-  } catch (error) {
-    console.error('Error in formDataAuthMiddleware:', error)
-    return new Response('Internal server error processing form data', {
-      status: 500,
-    })
   }
 }
 
@@ -128,14 +62,16 @@ export const verifyRequestBodyAndGetPublicKey = async (
     body.data.auth.publicKeyType,
     body.data.auth.publicKeyHex
   )
-  console.log('publicKeyformed to be verified:', publicKey)
+  // console.log('publicKeyformed to be verified:', publicKey)
 
   // Validate signature.
-  // if (!(await verifySignature(publicKey, body))) {
-  //   console.log("publicKey:", publicKey)
-  //   console.log("body:", body)
-  //   throw new KnownError(401, 'Unauthorized. Invalid signature.')
-  // }
+  if (!(await verifySignature(publicKey, body))) {
+    // console.log('publicKey:', publicKey)
+    // console.log('body:', body)
+    throw new KnownError(401, 'Unauthorized. Invalid signature.')
+  } else {
+    console.log("valid signature:", publicKey.getBech32Address('juno'))
+  }
 
   return publicKey
 }
@@ -150,34 +86,33 @@ export const verifySignature = async (
     console.log('signer:', signer)
     console.log('data:', data)
 
-    const message = serializeSignDoc(
-      makeSignDoc(
-        [
+    const aminoMsgs = makeSignDoc(
+      [
+        {
+          type: data.auth.type,
+          value: {
+            signer,
+            data: JSON.stringify(data, undefined, 2),
+          },
+        },
+      ],
+      {
+        gas: '0',
+        amount: [
           {
-            type: data.auth.type,
-            value: {
-              signer,
-              data: JSON.stringify(data, undefined, 2),
-            },
+            denom: data.auth.chainFeeDenom,
+            amount: '0',
           },
         ],
-        {
-          gas: '0',
-          amount: [
-            {
-              denom: data.auth.chainFeeDenom,
-              amount: '0',
-            },
-          ],
-        },
-        data.auth.chainId,
-        '',
-        0,
-        0
-      )
+      },
+      data.auth.chainId,
+      '',
+      0,
+      0
     )
+    console.log('signature:', signature)
+    const message = serializeSignDoc(aminoMsgs)
 
-    console.log('signature to verify:', signature)
     return await publicKey.verifySignature(message, signature)
   } catch (err) {
     console.error('Signature verification', err)
@@ -195,7 +130,7 @@ export const verifyDNASWidgetEnabledAndDaoMember = async (
   // Validate public key.
   const publicKey = makePublicKey(auth.publicKeyType, auth.publicKeyHex)
   const signer = publicKey.getBech32Address(auth.chainBech32Prefix)
-  console.log('signer:', signer)
+  // console.log('signer:', signer)
 
   // validate params from dao exist
   // let res = await getDnasParamms(body.data.auth.chainId, dao)

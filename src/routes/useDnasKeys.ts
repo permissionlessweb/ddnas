@@ -1,12 +1,18 @@
 import { fromBech32, toHex } from '@cosmjs/encoding'
 
 import { makePublicKey } from '../publicKeys'
-import { CustomAuthorizedRequest, Env, UseDnasKeyRequest } from '../types'
+import {
+  CustomAuthorizedRequest,
+  Env,
+  RequestBody,
+  UseDnasKeyRequest,
+} from '../types'
 import {
   getDnasApiKeyValue,
   getProfileDnasApiKeys,
   getProfileFromAddressHex,
   respond,
+  verifyRequestBodyAndGetPublicKey,
 } from '../utils'
 import { getIsDaoMember } from '../utils/dao'
 import { JackalErrorResponse, JackalSuccessResponse } from '../utils/jackal'
@@ -23,35 +29,61 @@ export const useDnasKeys = async (
   request: CustomAuthorizedRequest<UseDnasKeyRequest>,
   env: Env
 ) => {
-  const { parsedBody: custom, publicKey } = request
+  // Grab form data from request
+  const formData: FormData = await request.formData?.()
+  if (!formData) {
+    return new Response('Missing form data', { status: 400 })
+  }
+  // console.log('Received formData:', formData)
 
-  console.log('Starting useDnasKeys function')
-  console.log(custom.sign)
+  let signedBodyString = formData.get('auth_message')?.toString()
+  if (!signedBodyString) {
+    return new Response('Missing auth_message in form data', { status: 400 })
+  }
+  // console.log('authmsg:', signedBodyString)
 
+  // Parse the signed body string into a RequestBody object
+  let parsedBody: RequestBody
+  try {
+    parsedBody = JSON.parse(signedBodyString)
+  } catch (e) {
+    console.error('Failed to parse auth_message as JSON:', e)
+    return new Response('Invalid auth_message format', { status: 400 })
+  }
+  // Now verify the parsed RequestBody and get the public key
+  const publicKey = await verifyRequestBodyAndGetPublicKey(parsedBody)
+
+  // Validate signature and extract public key
+  if (!publicKey) {
+    return new Response('Invalid Public Key', { status: 401 })
+  }
+  // console.log('publicKeyformed to be verified:', publicKey)
+
+  const custom = parsedBody.data
   // Validate public key.
   const dnasChainpublicKey = makePublicKey(
-    custom.sign.data.auth.publicKeyType,
-    custom.sign.data.auth.publicKeyHex
+    custom.auth.publicKeyType,
+    custom.auth.publicKeyHex
   )
 
   const signer = dnasChainpublicKey.getBech32Address(
-    custom.sign.data.auth.chainBech32Prefix
+    custom.auth.chainBech32Prefix
   )
-  console.log('signer', signer)
+  // console.log('signer', signer)
 
   const daoMember = await getIsDaoMember(
-    custom.sign.data.auth.chainId,
+    custom.auth.chainId,
     signer,
-    custom.sign.data.dao
+    custom.dao
   )
   if (!daoMember) {
     return respond(500, {
-      error: 'Addr is not member of DAO',
+      error: `${signer} is not member of DAO`,
     })
   }
 
   // get profile for keyOwner requested (expected to already be hex string from decoded bech32 address)
-  const addressHex = custom.sign.data.keyOwner
+  const addressHex = toHex(fromBech32(custom.keyOwner).data)
 
   const profile = await getProfileFromAddressHex(env, addressHex)
   if (!profile) {
@@ -65,9 +97,9 @@ export const useDnasKeys = async (
   // - key owner has registered a key to this dao
   const thisDnasApi = profileDnasApiKeys.find(
     (key) =>
-      key.row.chainId === custom.sign.data.auth.chainId &&
+      key.row.chainId === custom.auth.chainId &&
       // key.row.apiKeyHash === custom.sign.data.keyHash &&
-      key.row.daoAddr === custom.sign.data.dao
+      key.row.daoAddr === toHex(fromBech32(custom.dao).data)
   )
 
   if (!thisDnasApi) {
@@ -75,7 +107,7 @@ export const useDnasKeys = async (
       error: 'Dao member has no dnas api key for this DAO.',
     })
   }
-  console.log('THIS DAO SPECIFIC DNAS API KEY FOUND', thisDnasApi)
+  // console.log('THIS DAO SPECIFIC DNAS API KEY FOUND', thisDnasApi)
 
   // get the actual api key
   let apiKey = await getDnasApiKeyValue(env, thisDnasApi.row.id)
@@ -88,29 +120,40 @@ export const useDnasKeys = async (
   try {
     // Create a new FormData for the outgoing request
     const outgoingForm = new FormData()
-    custom.files.forEach((file, index) => {
-      outgoingForm.append(`files[${index}]`, file);
-    });
+
+    for (const [key, value] of formData.entries()) {
+      // Check if the key starts with 'file_'
+      if (key.startsWith('file_')) {
+        // Check if the value is a File
+        if (value instanceof File) {
+          outgoingForm.append(key, value)
+        } else {
+          // If not a File, you might want to handle this case
+          console.error(`Value for key '${key}' is not a File.`)
+        }
+      }
+    }
 
     // Log what we're actually sending
     for (const [key, value] of outgoingForm.entries()) {
-      console.log(`FormData entry: ${key}=${value}`);
+      // console.log(`FormData entry: ${key}=${value}`)
     }
     // @ts-ignore: FormData has forEach in browsers but might not be recognized in your environment
-
+    const encodedApiKey = Buffer.from(apiKey, 'base64').toString('utf-8')
+    // console.log(encodedApiKey)
     // Better error handling with async/await
     const options: RequestInit = {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${Buffer.from(apiKey, 'base64').toString('utf-8')}`,
+        Authorization: `Bearer ${encodedApiKey}`,
       },
       body: outgoingForm, // Include the FormData as the request body
     }
-    console.log('got this far, we are hitting the jackal api...')
+    // console.log('got this far, we are hitting the jackal api...')
     const response = await fetch(jackalApiUploadMultipleFileBase, options)
     if (response.ok) {
       const res: JackalSuccessResponse = await response.json()
-      console.log(res)
+      // console.log(res)
       return respond(200, {
         success: true,
         cid: res.cid,
@@ -150,7 +193,7 @@ export const useDnasKeys = async (
 
 // fetch('', options)
 //   .then(response => response.json())
-//   .then(response => console.log(response))
+//   .then(response => // console.log(response))
 //   .catch(err => console.error(err));
 
 // create new collection
@@ -158,7 +201,7 @@ export const useDnasKeys = async (
 
 // fetch('https://pinapi.jackalprotocol.com/api/collections/{name}', options)
 //   .then(response => response.json())
-//   .then(response => console.log(response))
+//   .then(response => // console.log(response))
 //   .catch(err => console.error(err));
 
 // upload multiple files
@@ -174,7 +217,7 @@ export const useDnasKeys = async (
 
 // fetch('https://pinapi.jackalprotocol.com/api/v1/files', options)
 //   .then(response => response.json())
-//   .then(response => console.log(response))
+//   .then(response => // console.log(response))
 //   .catch(err => console.error(err));
 
 // add file to collection
@@ -182,7 +225,7 @@ export const useDnasKeys = async (
 
 // fetch('https://pinapi.jackalprotocol.com/api/collections/{id}/{fileid}', options)
 //   .then(response => response.json())
-//   .then(response => console.log(response))
+//   .then(response => // console.log(response))
 //   .catch(err => console.error(err));
 
 // add collection to collection
@@ -190,5 +233,5 @@ export const useDnasKeys = async (
 
 // fetch('https://pinapi.jackalprotocol.com/api/collections/{id}/c/{collectionid}', options)
 //   .then(response => response.json())
-//   .then(response => console.log(response))
+//   .then(response => // console.log(response))
 //   .catch(err => console.error(err));7

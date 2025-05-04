@@ -16,7 +16,7 @@ import { updateProfile } from './routes/updateProfile'
 import { useDnasKeys } from './routes/useDnasKeys'
 import { Env } from './types'
 import { KnownError } from './utils'
-import { authMiddleware, formDataAuthMiddleware } from './utils/auth'
+import { authMiddleware } from './utils/auth'
 
 // Create CORS handlers.
 const { preflight, corsify } = createCors({
@@ -57,34 +57,31 @@ router.get('/hex/:addressHex', fetchProfile)
 // Backwards compatible.
 router.get('/bech32/:addressHex', fetchProfile)
 
-// Fetch profile with bech32 address.
-router.get('/daoKeys/address/:bech32Address', fetchAllDaoKeys)
-
-// fetch all keys available for a given DAO
-router.get('/daoKeys/bech32/:addressHex', fetchAllDaoKeys)
-// fetch all keys available for a given DAO
-router.get('/daoKeys/hex/:addressHex', fetchAllDaoKeys)
-
 // Update profile.
 router.post('/', authMiddleware, updateProfile)
 
-// Update dnas.
-router.post('/update-dnas', authMiddleware, updateDnasKeys)
+// Unregister existing public keys.
+router.post('/unregister', authMiddleware, unregisterPublicKeys)
 
 // Register more public keys.
 router.post('/register', authMiddleware, registerPublicKeys)
 
+//   ~~~~  DNAS ENTRY POINTS  ~~~~
 // Register dnas ap keys.
 router.post('/register-dnas', authMiddleware, registerDnasKeys)
 
-// Unregister existing public keys.
-router.post('/unregister', authMiddleware, unregisterPublicKeys)
+// Update dnas.
+router.post('/update-dnas', authMiddleware, updateDnasKeys)
 
 // Register dnas ap keys.
 router.post('/unregister-dnas', authMiddleware, unregisterDnasKeys)
 
 // Request to use a dnas key as a DAO member
-router.post('/use-dnas', formDataAuthMiddleware, useDnasKeys)
+router.post('/use-dnas', useDnasKeys)
+
+// fetch all keys available for a given DAO
+router.get('/daoKeys/address/:bech32Address', fetchAllDaoKeys)
+router.get('/daoKeys/bech32/:addressHex', fetchAllDaoKeys)
 
 // 404
 router.all('*', () => new Response('404', { status: 404 }))

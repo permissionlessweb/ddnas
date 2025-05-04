@@ -20,7 +20,9 @@ import {
 
 export const registerDnasKeys = async (
   {
-    parsedBody: { data: { auth, keys }, signature,
+    parsedBody: {
+      data: { auth, keys },
+      signature,
     },
     publicKey,
   }: AuthorizedRequest<RegisterDnasKeyRequest>,
@@ -35,11 +37,11 @@ export const registerDnasKeys = async (
       throw new Error('Keys must be provided as an array')
     }
 
-    await Promise.all(keys.filter((key) => {
-      return verifyDNASWidgetEnabledAndDaoMember(key.dao, auth)
-    })
-      .map((key) => verifyRequestBodyAndGetPublicKey({ data: { auth, key }, signature })
-      )
+    await Promise.all(
+      keys
+        .filter((key) => {
+          return verifyDNASWidgetEnabledAndDaoMember(key.dao, auth)
+        })
     )
   } catch (err) {
     if (err instanceof KnownError) {
@@ -55,7 +57,7 @@ export const registerDnasKeys = async (
 
   // Find or create profile.
   let profile: DbRowProfile
-  console.log('FETCHING PROFILE VIA publicKey.hex:', publicKey.hex)
+  // console.log('FETCHING PROFILE VIA publicKey.hex:', publicKey.hex)
   try {
     let _profile: DbRowProfile | null = await getProfileFromPublicKeyHex(
       env,
@@ -63,7 +65,7 @@ export const registerDnasKeys = async (
     )
     // If no profile exists, create one.
     if (!_profile) {
-      console.log('NO PROFILE FOUND, SAVING NEW ONE:', publicKey.addressHex)
+      // console.log('NO PROFILE FOUND, SAVING NEW ONE:', publicKey.addressHex)
       _profile = await saveProfile(
         env,
         publicKey,
@@ -78,7 +80,7 @@ export const registerDnasKeys = async (
       // will save api keys to profile after validate & increment nonce
     }
     // Log after successful DB operation
-    // console.log('Profile saved successfully:', _profile)
+    // // console.log('Profile saved successfully:', _profile)
     profile = _profile
   } catch (err) {
     console.error('Error saving profile:', err)

@@ -21,7 +21,7 @@ export const getIsDaoMember = async (
     } catch (e) {
       votingPower = responseText
     }
-    console.log('votingPower:', votingPower)
+    // console.log('votingPower:', votingPower)
     return votingPower && votingPower !== '0'
   } catch (err) {
     console.error(err)

@@ -174,7 +174,7 @@ export type UpdateProfileRequest = {
 // Body of profile update request.
 export type UpdateDnasKeysRequest = {
   dnas: Partial<Omit<UpdateDnasKey, 'nonce'>> &
-  Pick<UpdateDnasKey, 'nonce' | 'daoAddr'>[]
+    Pick<UpdateDnasKey, 'nonce' | 'daoAddr'>[]
 }
 
 // Body of profile update response.
@@ -213,28 +213,27 @@ export type UnregisterPublicKeyRequest = { publicKeys: PublicKeyJson[] }
 export type UnregisterPublicKeyResponse = { success: true } | { error: string }
 
 // Body of making use of dao dnas api key request.
-export type UseDnasKeyRequest = {
+export type UseDnasKeyRequest = RequestBody<{
+  dao: string
+  keyOwner: string
+  // keyHash: string
+}> & {
   files: File[]
-  sign: RequestBody<{
-    dao: string
-    keyOwner: string
-    // keyHash: string
-  }>
 }
 
 // Body of unregister public key response.
 export type UseDnasKeyResponse =
   | {
-    success: true
-    cid: string
-    type: string
-    id: string
-  }
+      success: true
+      cid: string
+      type: string
+      id: string
+    }
   | {
-    error: string
-    status?: number
-    details?: Record<string, unknown>
-  }
+      error: string
+      status?: number
+      details?: Record<string, unknown>
+    }
 
 // Metadata about files without including the full content
 export type FileMetadata = {

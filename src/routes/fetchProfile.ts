@@ -80,39 +80,36 @@ export const fetchProfile: RouteHandler<Request> = async (
     )
     const ddnas = await getProfileDnasApiKeys(env, profileRow.id)
 
-
     // Process the ddnas to map them by daoAddr
-    const dnasByChainAndDaoAddr: Record<string, DnasKeyRecord> = {};
+    const dnasByChainAndDaoAddr: Record<string, DnasKeyRecord> = {}
 
     // Loop through each DNAS entry
     for (const dna of ddnas) {
-      const chainIdKey = String(dna.row.chainId);
+      const chainIdKey = String(dna.row.chainId)
       const exists = !dnasByChainAndDaoAddr[chainIdKey]
-      // console.log("exists", exists)
-      // console.log("publicKeysPerChain", publicKeysPerChain)
+      // // console.log("exists", exists)
+      // // console.log("publicKeysPerChain", publicKeysPerChain)
 
       // Initialize the chain record if it doesn't exist
       if (exists) {
-        dnasByChainAndDaoAddr[chainIdKey] = {};
+        dnasByChainAndDaoAddr[chainIdKey] = {}
       }
-      // console.log("Processing DNAS entry:", JSON.stringify(dna.row, null, 2));
-      const matchingPublicKeyRecord = publicKeysPerChain.find(
-        ({ chainId }) => {
-          // console.log("chainId:", chainId)
-          // console.log("chainIdKey:", chainIdKey)
-          return chainId === chainIdKey
-        }
-      );
-      let keyOwner;
-      console.log(matchingPublicKeyRecord)
+      // // console.log("Processing DNAS entry:", JSON.stringify(dna.row, null, 2));
+      const matchingPublicKeyRecord = publicKeysPerChain.find(({ chainId }) => {
+        // // console.log("chainId:", chainId)
+        // // console.log("chainIdKey:", chainIdKey)
+        return chainId === chainIdKey
+      })
+      let keyOwner
+      // console.log(matchingPublicKeyRecord)
       if (matchingPublicKeyRecord) {
-        const { chainId, publicKey } = matchingPublicKeyRecord;
-        const bech32Prefix = mustGetChain(chainId).bech32_prefix;
-        const daoMemberAddress = await publicKey.getBech32Address(bech32Prefix);
-        // console.log("daoMemberAddress:", daoMemberAddress);
-        keyOwner = daoMemberAddress;
+        const { chainId, publicKey } = matchingPublicKeyRecord
+        const bech32Prefix = mustGetChain(chainId).bech32_prefix
+        const daoMemberAddress = await publicKey.getBech32Address(bech32Prefix)
+        // // console.log("daoMemberAddress:", daoMemberAddress);
+        keyOwner = daoMemberAddress
       } else {
-        keyOwner = undefined;
+        keyOwner = undefined
       }
 
       // Add the DNAS record with the daoAddr as key
@@ -125,7 +122,7 @@ export const fetchProfile: RouteHandler<Request> = async (
         ...(dna.row.uploadLimit !== undefined && dna.row.uploadLimit !== null
           ? { uploadLimit: String(dna.row.uploadLimit) }
           : {}),
-      };
+      }
     }
 
     // Build the chains object

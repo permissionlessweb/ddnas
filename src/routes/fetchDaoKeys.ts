@@ -15,8 +15,8 @@ export const fetchAllDaoKeys: RouteHandler<Request> = async (
   let addressHex = request.params?.addressHex?.trim()
   // via bech32 address
   const bech32Address = request.params?.bech32Address?.trim()
-  // console.log("addressHex", addressHex)
-  // console.log("bech32Address", bech32Address)
+  // // console.log("addressHex", addressHex)
+  // // console.log("bech32Address", bech32Address)
 
   let daoKeys: FetchedDaoKeys | null = null
   try {
@@ -28,7 +28,7 @@ export const fetchAllDaoKeys: RouteHandler<Request> = async (
     if (addressHex) {
       daoKeys = await getDnsApiKeysByDaoAddrHex(env, addressHex)
     }
-    // console.log("daoKeys:", daoKeys)
+    // // console.log("daoKeys:", daoKeys)
   } catch (err) {
     console.error('Profile retrieval', err)
 

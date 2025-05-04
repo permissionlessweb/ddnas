@@ -2,17 +2,12 @@ import * as fs from 'fs'
 import path from 'node:path'
 
 import { Secp256k1HdWallet, StdSignature, makeSignDoc } from '@cosmjs/amino'
-import {
-  CosmWasmClient,
-  SigningCosmWasmClient,
-} from '@cosmjs/cosmwasm-stargate'
+import { SigningCosmWasmClient } from '@cosmjs/cosmwasm-stargate'
 import { fromBase64, fromBech32, toHex } from '@cosmjs/encoding'
 import { OfflineSigner } from '@cosmjs/proto-signing'
 import {
   Auth,
   FetchedProfile,
-  ProfileDnasKeyWithoutIds,
-  RegisterDnasKeyRequest,
   SignMessageParams,
   SignatureOptions,
   SignedBody,
@@ -47,13 +42,17 @@ async function main() {
     // 0. Initialize wallets for testing
     const daoMember1Mnemonic =
       process.env.DAO_MEMBER1_MNEMONIC ||
-      'unhappy token earn risk cushion dance robot filter task october giggle funny' // Replace with your test mnemonic
-    const daoMember2Mnemonic =
+      'major garlic pulse siren arm identify all oval dumb tissue moral upon poverty erase judge either awkward metal antenna grid crack pioneer panther bullet'
+      const daoMember2Mnemonic =
       process.env.DAO_MEMBER2_MNEMONIC ||
-      'finish custom duty any destroy sibling zone brain legend fitness subject token high skirt festival define result vacant pepper vast element present direct bright' // Replace with your test mnemonic
+      'finish custom duty any destroy sibling zone brain legend fitness subject token high skirt festival define result vacant pepper vast element present direct bright'
+      const notMemberMnemonic =
+        process.env.DAO_MEMBER1_MNEMONIC ||
+        'unhappy token earn risk cushion dance robot filter task october giggle funny'
 
     const member1Wallet = await initializeWallet(daoMember1Mnemonic)
     const member2Wallet = await initializeWallet(daoMember2Mnemonic)
+    const notMemberWallet = await initializeWallet(daoMember1Mnemonic)
 
     const member1Accounts = await member1Wallet.getAccounts()
     const member2Accounts = await member2Wallet.getAccounts()
@@ -73,7 +72,7 @@ async function main() {
       LOCAL_RPC,
       member2Wallet
     )
-    const queryClient = await CosmWasmClient.connect(LOCAL_RPC)
+    // const queryClient = await CosmWasmClient.connect(LOCAL_RPC)
 
     // Get public keys
     const member1Account = await member1Client.getAccount(member1Address)
@@ -89,16 +88,19 @@ async function main() {
     console.log('Member 1 public key:', member1HexPublicKey)
     console.log('Member 2 public key:', member2HexPublicKey)
 
-    // // 1. Register profile (public key) for dao-member-1
-    // // 1.1 Register profile (public key) for dao-member-2
-    // console.log("\n1. Registering profile for dao-member-1...");
-    const profileResponse = await registerProfile(
+    // // 1. Register profile (public key) for both dao members
+    const profile1Response = await registerProfile(
       member1Wallet,
       member1Address,
-      member1HexPublicKey,
-    );
-    console.log("Register profile response:", profileResponse)
-
+      member1HexPublicKey
+    )
+    const profile2Response = await registerProfile(
+      member2Wallet,
+      member2Address,
+      member2HexPublicKey
+    )
+    // console.log('Register profile 1 response:', profile1Response)
+    // console.log('Register profile 1 response:', profile2Response)
 
     //  Save DNAS key to DAO for member 1
     registerDnas(
@@ -107,41 +109,84 @@ async function main() {
       member1Address,
       daoAddr,
       apiKeyValue
-    );
+    )
 
     //  2. Get fetch saved profile for profile id
-    console.log("\n2. Querying profile for dao-member-1...");
-    let response = await fetch(API_BASE + `/${member1HexPublicKey}`)
-    let fetchedProfile: FetchedProfile = await response.json()
+    // console.log('\n2. Querying profiles via public key hex...')
+    let response1 = await fetch(API_BASE + `/${member1HexPublicKey}`)
+    let response2 = await fetch(API_BASE + `/${member2HexPublicKey}`)
+    let fetchedProfile1: FetchedProfile = await response1.json()
+    let fetchedProfile2: FetchedProfile = await response2.json()
+    if (JSON.stringify(fetchedProfile1) === JSON.stringify(fetchedProfile2)) {
+      throw new Error('Fetched profiles via bech32 address are the same')
+    }
+
+    // console.log('\n2.1 Querying profiles via bech32 address...')
+    response1 = await fetch(API_BASE + `/address/${member1Address}`)
+    response2 = await await fetch(API_BASE + `/address/${member2Address}`)
+    fetchedProfile1 = await response1.json()
+    fetchedProfile2 = await response2.json()
+    if (JSON.stringify(fetchedProfile1) === JSON.stringify(fetchedProfile2)) {
+      throw new Error('Fetched profiles via public key hex are the same')
+    }
+
+    // console.log('\n2.2 Querying profiles via bech32 address...')
+    response1 = await fetch(
+      API_BASE + `/bech32/${toHex(fromBech32(member1Address).data)}`
+    )
+    response2 = await fetch(
+      API_BASE + `/bech32/${toHex(fromBech32(member2Address).data)}`
+    )
+    fetchedProfile1 = await response1.json()
+    fetchedProfile2 = await response2.json()
+    if (JSON.stringify(fetchedProfile1) === JSON.stringify(fetchedProfile2)) {
+      throw new Error('Fetched profiles via public key hex are the same')
+    }
+
+    // assert these are different from each other ^
+    // console.log('\n2.3 Querying profiles via bech32 address...')
+    response1 = await fetch(
+      API_BASE + `/hex/${toHex(fromBech32(member1Address).data)}`
+    )
+    response2 = await fetch(
+      API_BASE + `/hex/${toHex(fromBech32(member2Address).data)}`
+    )
+    fetchedProfile1 = await response1.json()
+    fetchedProfile2 = await response2.json()
+    if (JSON.stringify(fetchedProfile1) === JSON.stringify(fetchedProfile2)) {
+      throw new Error('Fetched profiles via hex are the same')
+    }
 
     //  2. Get fetch saved profile for profile id
-    console.log("\n2. Querying profile for dao-member-1...");
-    response = await fetch(API_BASE + `/daoKeys/bech32/${toHex(fromBech32(daoAddr).data)}`)
-    console.log(response)
+    // console.log('\n2. Querying profile for dao-member-1...')
+    let daoRes = await fetch(
+      API_BASE + `/daoKeys/bech32/${toHex(fromBech32(daoAddr).data)}`
+    )
+    // console.log(daoRes)
 
     // // 7. Upload test files
-    // console.log("\n4. Uploading test files with dao-member-1...");
+    // console.log('\n4. Uploading test files with dao-member-1...')
 
-    // const testFilePaths = [
-    //   path.join(__dirname, 'test-data', 'test-file1.txt'),
-    //   path.join(__dirname, 'test-data', 'tomato.json'),
-    // ];
+    const testFilePaths = [
+      path.join(__dirname, 'test-data', 'test-file1.txt'),
+      path.join(__dirname, 'test-data', 'tomato.json'),
+    ]
 
     // // Upload files using the DAO member's credentials
-    // const uploadResponse = await uploadFilesToDao(
-    //   member1Wallet,
-    //   member1HexPublicKey,
-    //   member1Address,
-    //   daoAddr,
-    //   member1Address,
-    //   testFilePaths
-    // );
+    const uploadResponse = await uploadFilesToDao(
+      member1Wallet,
+      member1HexPublicKey,
+      member1Address,
+      daoAddr,
+      member1Address,
+      testFilePaths
+    )
 
-    // console.log("File upload response:", uploadResponse);
+    // console.log('File upload response:', uploadResponse)
 
-    // // 8. Query files to verify upload
-    // console.log("\n5. Querying files for dao-member-1...");
-    // // Add file query implementation if your API supports it
+    // 8. Query files to verify upload
+    // console.log('\n5. Querying files for dao-member-1...')
+    // Add file query implementation if your API supports it
 
     // // 3. Create auth object for the DNAS key request
     // auth = createAuth(
@@ -172,14 +217,13 @@ async function main() {
     //     headers: { 'Content-Type': 'application/json' },
     //     body: JSON.stringify(unregisterRequest),
     // });
-    // console.log("Dnas Key registration response:", removeDnasApiKey);
+    // // console.log("Dnas Key registration response:", removeDnasApiKey);
 
-    console.log('\nAll tests completed successfully!')
+    // console.log('\nAll tests completed successfully!')
   } catch (error) {
     console.error('Error in main:', error)
   }
 }
-
 
 // New function to register a profile (public key)
 async function registerProfile(
@@ -251,8 +295,8 @@ async function registerProfile(
       offlineSignerAmino,
     })
 
-    // console.log('Sending profile registration request...')
-    // console.log('Request payload:', JSON.stringify(signedBody, null, 2))
+    // // console.log('Sending profile registration request...')
+    // // console.log('Request payload:', JSON.stringify(signedBody, null, 2))
 
     // Send request to API
     const response = await fetch(`${API_BASE}/register`, {
@@ -282,51 +326,16 @@ async function registerDnas(
   hexPublicKey: string,
   bech32Addr: string,
   daoAddr: string,
-  apiKeyValue: string,
+  apiKeyValue: string
 ) {
   // 1. Create the main auth object
   const auth = createAuth(
     'DAO DAO DNAS Profile | Register Dnas Key',
     await getNonce(API_BASE, hexPublicKey),
     hexPublicKey
-  );
+  )
 
-  // Create the public key data structure 
-  // This is if we want to sign each key entry, 
-  // and then wrap all into a signed auth body, 
-  // but we chose here to only sign the main auth body.
-
-  // const dnasKeyDataByAuth = {
-  //   data: {
-  //     dao: daoAddr,
-  //     dnas: {
-  //       type: 'api_key',
-  //       keyMetadata: '{}',
-  //       uploadLimit: '1000000',
-  //       apiKeyValue: Buffer.from(apiKeyValue).toString('base64'),
-  //     },
-  //     auth: auth,
-  //   },
-  //   signature: '', // Will be filled later
-  // const messageToSign = {
-  //   type: auth.type,
-  //   nonce: auth.nonce,
-  //   chain_id: auth.chainId,
-  //   address: bech32Addr,
-  //   public_key: hexPublicKey,
-  //   data: dnasKeyData.data,
-  // }
-
-  // Sign the message for public key
-  // const { signature } = await signMessageAmino({
-  //   offlineSignerAmino: memberWallet as any,
-  //   address: bech32Addr,
-  //   chainId,
-  //   messageToSign,
-  // })
-  // // Assign the signature to the public key data
-  // dnasKeyData.signature = signature.signature
-
+  // Create the public key data structure. we chose here to only sign the main auth body.
   const dnasKeyData = {
     dao: daoAddr,
     dnas: {
@@ -350,26 +359,29 @@ async function registerDnas(
     hexPublicKey: hexPublicKey,
     data: publicKeyRequestData,
     offlineSignerAmino: memberWallet as any,
-  });
+  })
 
-  console.log('Sending DNAS registration request...');
+  console.log('Sending DNAS registration request...', signedBody)
 
   const registerResponse = await fetch(`${API_BASE}/register-dnas`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(signedBody),
-  });
+  })
 
   if (!registerResponse.ok) {
-    const errorText = await registerResponse.text();
-    console.error(`DNAS key registration failed with status ${registerResponse.status}: ${errorText}`);
-    throw new Error(`API error: ${registerResponse.status} - ${registerResponse.statusText}`);
+    const errorText = await registerResponse.text()
+    console.error(
+      `DNAS key registration failed with status ${registerResponse.status}: ${errorText}`
+    )
+    throw new Error(
+      `API error: ${registerResponse.status} - ${registerResponse.statusText}`
+    )
   }
 
-  const registerResult = await registerResponse.json();
-  console.log("Register DNAS key response:", registerResult);
+  const registerResult = await registerResponse.json()
+  // console.log('Register DNAS key response:', registerResult)
 }
-
 
 // Helper function to determine content type based on file extension
 function getContentType(fileName: string): string {
@@ -394,7 +406,6 @@ function getContentType(fileName: string): string {
 
   return contentTypes[extension] || 'application/octet-stream'
 }
-
 
 // Client-side code for sending files with metadata
 async function uploadFilesToDao(
@@ -444,7 +455,7 @@ async function uploadFilesToDao(
       publicKeyHex: hexPublicKey,
     }
 
-    // Create the request data
+    // create the custom auth object ()
     const requestData = {
       dao: daoId,
       keyOwner: keyOwner,
@@ -463,11 +474,11 @@ async function uploadFilesToDao(
       offlineSignerAmino: wallet as any,
     })
 
-    console.log('Creating FormData for file upload...')
+    // console.log('Creating FormData for file upload...')
 
     // Create form data with both the signed message and actual files
     const formData = new FormData()
-    console.log('Sending file upload request...')
+    // console.log('Sending file upload request...')
 
     // Add the signed message as JSON
     formData.append('auth_message', JSON.stringify(signedBody))
@@ -478,13 +489,12 @@ async function uploadFilesToDao(
       formData.append(`file_${index}`, file.blob)
     })
 
-    // console.log("formData", formData)
+    // console.log('formData', formData)
+
     // Send the request
     // First, send the signed message as JSON
     const messageResponse = await fetch(`${API_BASE}/use-dnas`, {
       method: 'POST',
-      // Let the browser set the content-type header automatically
-      // It will include the boundary parameter which is required
       body: formData,
     })
 
@@ -497,14 +507,13 @@ async function uploadFilesToDao(
     }
 
     const result = await messageResponse.json()
-    console.log('Upload successful:', result)
+    // console.log('Upload successful:', result)
     return result
   } catch (error) {
     console.error('Error in uploadFilesToDao:', error)
     throw error
   }
 }
-
 
 // Helper function to get nonce from API
 async function getNonce(
@@ -574,7 +583,7 @@ export const signOffChainAuth = async <
       gas: '0',
       amount: [{ denom: dataWithAuth.auth.chainFeeDenom, amount: '0' }],
     },
-    'juno-1',
+    chainId,
     '',
     0,
     0
