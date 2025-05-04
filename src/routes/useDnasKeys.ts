@@ -1,4 +1,6 @@
 import { fromBech32, toHex } from '@cosmjs/encoding'
+import { FormData } from 'undici'
+import { Buffer } from 'node:buffer'
 
 import { makePublicKey } from '../publicKeys'
 import {
@@ -17,6 +19,13 @@ import {
 } from '../utils'
 import { getIsDaoMember } from '../utils/dao'
 import { JackalErrorResponse, JackalSuccessResponse } from '../utils/jackal'
+
+// Define the File interface if it doesn't exist in the environment
+interface FileObject {
+  name: string;
+  type: string;
+  size: number;
+}
 
 const jackalApiCreateCollectionBase =
   'https://pinapi.jackalprotocol.com/api/collections/test21233'
@@ -122,37 +131,58 @@ export const useDnasKeys = async (
   try {
     // Create a new FormData for the outgoing request
     const outgoingForm = new FormData()
+    let fileCount = 0
 
-    for (const [key, value] of formData.entries()) {
-      // Check if the key starts with 'file_'
-      if (key.startsWith('file_')) {
-        // Check if the value is a File
-        if (value instanceof File) {
-          outgoingForm.append(key, value)
-        } else {
-          // If not a File, you might want to handle this case
-          console.error(`Value for key '${key}' is not a File.`)
+    // Process all form entries and check if they're files
+    for (const [key, value] of Object.entries(formData)) {
+      // Skip the sign key since it contains the auth data
+      if (key === 'sign') continue;
+      
+      // Check if we're dealing with a file-like object
+      if (value && typeof value === 'object' && 'name' in value && 'type' in value) {
+        // For files, Jackal API expects the key "files"
+        outgoingForm.append("files", value)
+        fileCount++
+        console.log(`Adding file: ${key}, name: ${(value as any).name}, as "files"`)
+      } else if (typeof value === 'string') {
+        // Add string values to the form as well
+        outgoingForm.append(key, value)
+        console.log(`Adding string value for key: ${key}`)
+      } else {
+        // For other types, try to stringify them
+        try {
+          outgoingForm.append(key, JSON.stringify(value))
+          console.log(`Adding JSON stringified value for key: ${key}`)
+        } catch (e) {
+          console.error(`Could not process form value for key '${key}':`, e)
         }
       }
     }
 
-    // Log what we're actually sending
-    for (const [key, value] of outgoingForm.entries()) {
-      console.log(`FormData entry: ${key}=${value}`)
+    // If no files were found in the form, return an error
+    if (fileCount === 0) {
+      return respond(400, {
+        error: 'No files found in the request. Please include at least one file.',
+      })
     }
 
-    // @ts-ignore: FormData has forEach in browsers but might not be recognized in your environment
+    // Log what we're actually sending
+    console.log(`Sending ${fileCount} files to Jackal API`)
+
+    // Encode the API key for authorization header
     const encodedApiKey = Buffer.from(apiKey, 'base64').toString('utf-8')
-    // console.log(encodedApiKey)
-    // Better error handling with async/await
-    const options: RequestInit = {
+    
+    // Prepare request options
+    const options = {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${encodedApiKey}`,
       },
-      body: outgoingForm, // Include the FormData as the request body
+      // Use outgoingForm as the body but cast it as any to work around TypeScript issue
+      body: outgoingForm as any,
     }
-    // console.log('got this far, we are hitting the jackal api...')
+    
+    // Make the request to Jackal API
     const response = await fetch(jackalApiUploadMultipleFileBase, options)
 
     if (response.ok) {
