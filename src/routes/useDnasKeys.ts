@@ -1,5 +1,6 @@
-import { fromBech32, toHex } from '@cosmjs/encoding'
 import { Buffer } from 'node:buffer'
+
+import { fromBech32, toHex } from '@cosmjs/encoding'
 
 import { makePublicKey } from '../publicKeys'
 import {
@@ -11,20 +12,12 @@ import {
 import {
   getDnasApiKeyValue,
   getProfileDnasApiKeys,
-  getProfileFromAddressHex,
   getProfileFromPublicKeyHex,
   respond,
   verifyRequestBodyAndGetPublicKey,
 } from '../utils'
 import { getIsDaoMember } from '../utils/dao'
 import { JackalErrorResponse, JackalSuccessResponse } from '../utils/jackal'
-
-// Define the File interface if it doesn't exist in the environment
-interface FileObject {
-  name: string;
-  type: string;
-  size: number;
-}
 
 const jackalApiCreateCollectionBase =
   'https://pinapi.jackalprotocol.com/api/collections/test21233'
@@ -47,7 +40,10 @@ export const useDnasKeys = async (
 
   let signedBodyString = formData.get('sign')?.toString()
   if (!signedBodyString) {
-    return new Response('Missing auth context indexed with "sign" in form data', { status: 400 })
+    return new Response(
+      'Missing auth context indexed with "sign" in form data',
+      { status: 400 }
+    )
   }
   // console.log('authmsg:', signedBodyString)
 
@@ -92,7 +88,7 @@ export const useDnasKeys = async (
   }
 
   // get profile for keyOwner requested (expected to already be hex string from decoded bech32 address)
-  const addressHex = custom.keyOwner// toHex(fromBech32(custom.keyOwner).data)
+  const addressHex = custom.keyOwner // toHex(fromBech32(custom.keyOwner).data)
   console.log(addressHex)
 
   const profile = await getProfileFromPublicKeyHex(env, addressHex)
@@ -131,12 +127,11 @@ export const useDnasKeys = async (
     // Create a new FormData for the outgoing request
     const outgoingForm = new FormData()
     let fileCount = 0
-    console.log("formData:", formData)
-
+    console.log('formData:', formData)
 
     // Process all form entries
     for (const value of formData.getAll('files')) {
-      console.log("keyValue:", value)
+      console.log('keyValue:', value)
       // Skip the 'sign' key since it contains auth data
       // if (key === 'sign') continue;
 
@@ -145,18 +140,18 @@ export const useDnasKeys = async (
       if (Array.isArray(value)) {
         // If value is an array of files
         value.forEach((file) => {
-          outgoingForm.append('files', file);
-          fileCount++;
-          console.log(`Adding file: ${file.name} as "files"`);
+          outgoingForm.append('files', file)
+          fileCount++
+          console.log(`Adding file: ${file.name} as "files"`)
           // if (file && 'name' in file && 'type' in file) {
           // }
-        });
+        })
       } else {
         // if (value && 'name' in value && 'type' in value) {
         // If value is a single file
-        outgoingForm.append('files', value);
-        fileCount++;
-        console.log(`Adding single file as "files"`);
+        outgoingForm.append('files', value)
+        fileCount++
+        console.log(`Adding single file as "files"`)
       }
       // }
     }
@@ -164,7 +159,8 @@ export const useDnasKeys = async (
     // If no files were found in the form, return an error
     if (fileCount === 0) {
       return respond(400, {
-        error: 'No files found in the request. Please include at least one file.',
+        error:
+          'No files found in the request. Please include at least one file.',
       })
     }
 

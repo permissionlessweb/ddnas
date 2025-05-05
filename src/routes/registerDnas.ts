@@ -15,7 +15,6 @@ import {
   incrementProfileNonce,
   saveProfile,
   verifyDNASWidgetEnabledAndDaoMember,
-  verifyRequestBodyAndGetPublicKey,
 } from '../utils'
 
 export const registerDnasKeys = async (
@@ -38,10 +37,9 @@ export const registerDnasKeys = async (
     }
 
     await Promise.all(
-      keys
-        .filter((key) => {
-          return verifyDNASWidgetEnabledAndDaoMember(key.dao, auth)
-        })
+      keys.filter((key) => {
+        return verifyDNASWidgetEnabledAndDaoMember(key.dao, auth)
+      })
     )
   } catch (err) {
     if (err instanceof KnownError) {

@@ -6,6 +6,7 @@
 - add public key for chain id if new key being registered in for a dao on a chain-id not yet registered
 - support for tracking key usage by dao member
 - support for key owner to allow/deny dao members
+- support for creating collections (folders), whitelist of address available to remove folders,
 
 - Any time a dao member leaves or the api is used, we need to remove their api key if it exists
 - profileID as variable to register exostomg from external profile source
