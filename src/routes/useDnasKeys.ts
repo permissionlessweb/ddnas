@@ -1,7 +1,5 @@
 import { Buffer } from 'node:buffer'
 
-import { fromBech32, toHex } from '@cosmjs/encoding'
-
 import { makePublicKey } from '../publicKeys'
 import {
   CustomAuthorizedRequest,
@@ -83,7 +81,7 @@ export const useDnasKeys = async (
   )
   if (!daoMember) {
     return respond(500, {
-      error: `${signer} is not member of DAO`,
+      error: `${signer} is not member of DAO: ${custom.dao}`,
     })
   }
 
@@ -105,7 +103,7 @@ export const useDnasKeys = async (
     (key) =>
       key.row.chainId === custom.auth.chainId &&
       // key.row.apiKeyHash === custom.sign.data.keyHash &&
-      key.row.daoAddr === toHex(fromBech32(custom.dao).data)
+      key.row.daoAddr === custom.dao
   )
 
   if (!thisDnasApi) {
@@ -168,13 +166,13 @@ export const useDnasKeys = async (
     console.log(`Sending ${fileCount} files to Jackal API`)
 
     // Encode the API key for authorization header
-    const encodedApiKey = Buffer.from(apiKey, 'base64').toString('utf-8')
+    const rawApiKey = Buffer.from(apiKey, 'base64').toString('utf-8')
 
     // Prepare request options
     const options = {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${encodedApiKey}`,
+        Authorization: `Bearer ${rawApiKey}`,
       },
       // Use outgoingForm as the body but cast it as any to work around TypeScript issue
       body: outgoingForm as any,
@@ -184,18 +182,25 @@ export const useDnasKeys = async (
     const response = await fetch(jackalApiUploadMultipleFileBase, options)
 
     if (response.ok) {
-      const res: JackalSuccessResponse = await response.json()
-      console.log(res)
+      const res: JackalSuccessResponse[] = await response.json()
       return respond(200, {
-        success: true,
-        cid: res.cid,
-        type: res.fileType,
-        id: res.fileId,
+        data: res.map((file) => ({
+          success: true,
+          cid: file.cid,
+          type: file.fileType,
+          id: file.fileId,
+        })),
       })
     } else {
       const res: JackalErrorResponse = await response.json()
-      return respond(500, {
-        error: `Error id: ${response.status}: ${res.message}`,
+
+      return respond(response.status, {
+        success: false,
+        error: JSON.stringify({
+          code: response.status,
+          message: res.message,
+          details: `HTTP ${response.status}: ${res.message}`,
+        }),
       })
     }
     // 200 == success
