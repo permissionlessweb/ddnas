@@ -1,7 +1,8 @@
 export interface JackalSuccessResponse {
   cid: string
-  fileType: string
-  fileId: string
+  id: string
+  merkle: string
+  name: string
   // ... other fields
 }
 

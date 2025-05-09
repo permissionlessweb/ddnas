@@ -85,8 +85,7 @@ export const useDnasKeys = async (
     })
   }
 
-  // get profile for keyOwner requested (expected to already be hex string from decoded bech32 address)
-  const addressHex = custom.keyOwner // toHex(fromBech32(custom.keyOwner).data)
+  const addressHex = custom.keyOwner  
   console.log(addressHex)
 
   const profile = await getProfileFromPublicKeyHex(env, addressHex)
@@ -113,45 +112,32 @@ export const useDnasKeys = async (
   }
 
   // get the actual api key
-  let apiKey = await getDnasApiKeyValue(env, thisDnasApi.row.id)
-  if (!apiKey) {
+  let rawApiKey = await getDnasApiKeyValue(env, thisDnasApi.row.id)
+  if (!rawApiKey) {
     return respond(500, {
-      error: 'Unable to resolve apiKey.',
+      error: 'Unable to resolve rawApiKey.',
     })
   }
-  console.log('THIS DAO SPECIFIC DNAS API KEY FOUND:', apiKey)
 
   try {
     // Create a new FormData for the outgoing request
     const outgoingForm = new FormData()
-    let fileCount = 0
-    console.log('formData:', formData)
+    // console.log('formData:', formData)
 
     // Process all form entries
+    let fileCount = 0
     for (const value of formData.getAll('files')) {
-      console.log('keyValue:', value)
-      // Skip the 'sign' key since it contains auth data
-      // if (key === 'sign') continue;
-
-      // if (key === 'files') {
-      // Handle files (could be a single file or multiple files)
       if (Array.isArray(value)) {
-        // If value is an array of files
         value.forEach((file) => {
           outgoingForm.append('files', file)
           fileCount++
-          console.log(`Adding file: ${file.name} as "files"`)
-          // if (file && 'name' in file && 'type' in file) {
-          // }
+          // console.log(`Adding file: ${file.name} as "files"`)
         })
       } else {
-        // if (value && 'name' in value && 'type' in value) {
-        // If value is a single file
         outgoingForm.append('files', value)
         fileCount++
-        console.log(`Adding single file as "files"`)
+        // console.log(`Adding single file as "files"`)
       }
-      // }
     }
 
     // If no files were found in the form, return an error
@@ -162,11 +148,12 @@ export const useDnasKeys = async (
       })
     }
 
-    // Log what we're actually sending
-    console.log(`Sending ${fileCount} files to Jackal API`)
 
+    // Log what we're actually sending
+    // console.log(`Sending ${fileCount} files to Jackal API`)
     // Encode the API key for authorization header
-    const rawApiKey = Buffer.from(apiKey, 'base64').toString('utf-8')
+    // console.log(`DEBUG ENCODED KEY:`, rawApiKey)
+
 
     // Prepare request options
     const options = {
@@ -174,7 +161,6 @@ export const useDnasKeys = async (
       headers: {
         Authorization: `Bearer ${rawApiKey}`,
       },
-      // Use outgoingForm as the body but cast it as any to work around TypeScript issue
       body: outgoingForm as any,
     }
 
@@ -182,18 +168,20 @@ export const useDnasKeys = async (
     const response = await fetch(jackalApiUploadMultipleFileBase, options)
 
     if (response.ok) {
-      const res: JackalSuccessResponse[] = await response.json()
+      const resJson = await response.json()
+      const res = resJson as JackalSuccessResponse[]
       return respond(200, {
         data: res.map((file) => ({
           success: true,
           cid: file.cid,
-          type: file.fileType,
-          id: file.fileId,
+          id: file.id,
+          merkle: file.merkle,
+          name: file.name,
         })),
       })
     } else {
-      const res: JackalErrorResponse = await response.json()
-
+      const resErrJson = await response.json()
+      const res = resErrJson as JackalErrorResponse
       return respond(response.status, {
         success: false,
         error: JSON.stringify({

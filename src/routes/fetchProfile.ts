@@ -87,17 +87,17 @@ export const fetchProfile: RouteHandler<Request> = async (
     for (const dna of ddnas) {
       const chainIdKey = String(dna.row.chainId)
       const exists = !dnasByChainAndDaoAddr[chainIdKey]
-      // // console.log("exists", exists)
-      // // console.log("publicKeysPerChain", publicKeysPerChain)
+      // console.log("exists", exists)
+      // console.log("publicKeysPerChain", publicKeysPerChain)
 
       // Initialize the chain record if it doesn't exist
       if (exists) {
         dnasByChainAndDaoAddr[chainIdKey] = {}
       }
-      // // console.log("Processing DNAS entry:", JSON.stringify(dna.row, null, 2));
+      // console.log("Processing DNAS entry:", JSON.stringify(dna.row, null, 2));
       const matchingPublicKeyRecord = publicKeysPerChain.find(({ chainId }) => {
-        // // console.log("chainId:", chainId)
-        // // console.log("chainIdKey:", chainIdKey)
+        // console.log("chainId:", chainId)
+        // console.log("chainIdKey:", chainIdKey)
         return chainId === chainIdKey
       })
       let keyOwner
@@ -106,7 +106,7 @@ export const fetchProfile: RouteHandler<Request> = async (
         const { chainId, publicKey } = matchingPublicKeyRecord
         const bech32Prefix = mustGetChain(chainId).bech32_prefix
         const daoMemberAddress = await publicKey.getBech32Address(bech32Prefix)
-        // // console.log("daoMemberAddress:", daoMemberAddress);
+        // console.log("daoMemberAddress:", daoMemberAddress);
         keyOwner = daoMemberAddress
       } else {
         keyOwner = undefined

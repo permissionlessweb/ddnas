@@ -55,7 +55,7 @@ export const registerDnasKeys = async (
 
   // Find or create profile.
   let profile: DbRowProfile
-  console.log('FETCHING PROFILE VIA publicKey.hex:', publicKey.hex)
+  // console.log('FETCHING PROFILE VIA publicKey.hex:', publicKey.hex)
   try {
     let _profile: DbRowProfile | null = await getProfileFromPublicKeyHex(
       env,
@@ -78,7 +78,7 @@ export const registerDnasKeys = async (
       // will save api keys to profile after validate & increment nonce
     }
     // Log after successful DB operation
-    // // console.log('Profile saved successfully:', _profile)
+    // console.log('Profile saved successfully:', _profile)
     profile = _profile
   } catch (err) {
     console.error('Error saving profile:', err)

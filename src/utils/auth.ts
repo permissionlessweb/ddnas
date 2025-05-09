@@ -70,7 +70,7 @@ export const verifyRequestBodyAndGetPublicKey = async (
     // console.log('body:', body)
     throw new KnownError(401, 'Unauthorized. Invalid signature.')
   } else {
-    console.log('valid signature:', publicKey.getBech32Address('juno'))
+    // console.log('valid signature:', publicKey.getBech32Address('juno'))
   }
 
   return publicKey
@@ -83,8 +83,8 @@ export const verifySignature = async (
 ): Promise<boolean> => {
   try {
     const signer = publicKey.getBech32Address(data.auth.chainBech32Prefix)
-    console.log('signer:', signer)
-    console.log('data:', data)
+    // console.log('signer:', signer)
+    // console.log('data:', data)
 
     const aminoMsgs = makeSignDoc(
       [

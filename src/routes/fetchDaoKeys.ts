@@ -28,7 +28,7 @@ export const fetchAllDaoKeys: RouteHandler<Request> = async (
     if (addressHex) {
       daoKeys = await getDnsApiKeysByDaoAddrHex(env, addressHex)
     }
-    // // console.log("daoKeys:", daoKeys)
+    // console.log("daoKeys:", daoKeys)
   } catch (err) {
     console.error('Profile retrieval', err)
 

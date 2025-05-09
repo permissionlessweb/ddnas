@@ -88,7 +88,7 @@ async function main() {
     console.log('Member 1 public key:', member1HexPublicKey)
     console.log('Member 2 public key:', member2HexPublicKey)
 
-    // // 1. Register profile (public key) for both dao members
+    // 1. Register profile (public key) for both dao members
     const profile1Response = await registerProfile(
       member1Wallet,
       member1Address,
@@ -165,7 +165,7 @@ async function main() {
     )
     // console.log(daoRes)
 
-    // // 7. Upload test files
+    // 7. Upload test files
     // console.log('\n4. Uploading test files with dao-member-1...')
 
     const testFilePaths = [
@@ -173,7 +173,7 @@ async function main() {
       path.join(__dirname, 'test-data', 'tomato.json'),
     ]
 
-    // // Upload files using the DAO member's credentials
+    // Upload files using the DAO member's credentials
     const uploadResponse = await uploadFilesToDao(
       member1Wallet,
       member1HexPublicKey,
@@ -189,19 +189,19 @@ async function main() {
     // console.log('\n5. Querying files for dao-member-1...')
     // Add file query implementation if your API supports it
 
-    // // 3. Create auth object for the DNAS key request
+    // 3. Create auth object for the DNAS key request
     // auth = createAuth(
     //     "DAO DAO DNAS Profile | UnRegister Dnas Key",
     //     await getNonce(API_BASE, member1HexPublicKey),
     //     member1HexPublicKey
     // );
-    // // Create the main unregister request data
+    // Create the main unregister request data
     // const mainUnregisterRequestData = {
     //     auth: auth,
     //     daos: [daoAddr]
     // };
 
-    // // Sign the main request using signOffChainAuth
+    // Sign the main request using signOffChainAuth
     // const unregisterRequest = await signOffChainAuth({
     //     type: auth.type,
     //     nonce: auth.nonce,
@@ -212,13 +212,13 @@ async function main() {
     //     offlineSignerAmino: member1Wallet as any,
     // });
 
-    // // 9. remove api key from dnas worker
+    // 9. remove api key from dnas worker
     // const removeDnasApiKey = await fetch(`${API_BASE}/unregister-dnas`, {
     //     method: 'POST',
     //     headers: { 'Content-Type': 'application/json' },
     //     body: JSON.stringify(unregisterRequest),
     // });
-    // // console.log("Dnas Key registration response:", removeDnasApiKey);
+    // console.log("Dnas Key registration response:", removeDnasApiKey);
 
     // console.log('\nAll tests completed successfully!')
   } catch (error) {
@@ -296,8 +296,8 @@ async function registerProfile(
       offlineSignerAmino,
     })
 
-    // // console.log('Sending profile registration request...')
-    // // console.log('Request payload:', JSON.stringify(signedBody, null, 2))
+    // console.log('Sending profile registration request...')
+    // console.log('Request payload:', JSON.stringify(signedBody, null, 2))
 
     // Send request to API
     const response = await fetch(`${API_BASE}/register`, {
