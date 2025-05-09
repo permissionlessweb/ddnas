@@ -1,5 +1,3 @@
-import { Buffer } from 'node:buffer'
-
 import { makePublicKey } from '../publicKeys'
 import {
   CustomAuthorizedRequest,
@@ -85,7 +83,7 @@ export const useDnasKeys = async (
     })
   }
 
-  const addressHex = custom.keyOwner  
+  const addressHex = custom.keyOwner
   console.log(addressHex)
 
   const profile = await getProfileFromPublicKeyHex(env, addressHex)
@@ -148,12 +146,10 @@ export const useDnasKeys = async (
       })
     }
 
-
     // Log what we're actually sending
     // console.log(`Sending ${fileCount} files to Jackal API`)
     // Encode the API key for authorization header
     // console.log(`DEBUG ENCODED KEY:`, rawApiKey)
-
 
     // Prepare request options
     const options = {

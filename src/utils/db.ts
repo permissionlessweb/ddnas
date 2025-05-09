@@ -302,7 +302,7 @@ export const getProfilePublicKeyPerChain = async (
       .bind(profileId)
       .all<
         Pick<DbRowProfilePublicKeyChainPreference, 'chainId'> &
-        Pick<DbRowProfilePublicKey, 'type' | 'publicKeyHex'>
+          Pick<DbRowProfilePublicKey, 'type' | 'publicKeyHex'>
       >()
   ).results
 
@@ -508,25 +508,25 @@ export const addProfilePublicKey = async (
     // If not attached to the current profile, attach it.
     !currentProfile || currentProfile.id !== profileId
       ? await env.DB.prepare(
-        `
+          `
           INSERT INTO profile_public_keys (profileId, type, publicKeyHex, addressHex)
           VALUES (?1, ?2, ?3, ?4)
           ON CONFLICT DO NOTHING
           RETURNING id
           `
-      )
-        .bind(profileId, publicKey.type, publicKey.hex, publicKey.addressHex)
-        .first<Pick<DbRowProfilePublicKey, 'id'>>()
+        )
+          .bind(profileId, publicKey.type, publicKey.hex, publicKey.addressHex)
+          .first<Pick<DbRowProfilePublicKey, 'id'>>()
       : // Otherwise just find the existing public key.
-      await env.DB.prepare(
-        `
+        await env.DB.prepare(
+          `
           SELECT id
           FROM profile_public_keys
           WHERE type = ?1 AND publicKeyHex = ?2
           `
-      )
-        .bind(publicKey.type, publicKey.hex)
-        .first<Pick<DbRowProfilePublicKey, 'id'>>()
+        )
+          .bind(publicKey.type, publicKey.hex)
+          .first<Pick<DbRowProfilePublicKey, 'id'>>()
   if (!profilePublicKeyRow) {
     throw new KnownError(500, 'Failed to save or retrieve profile public key.')
   }
@@ -577,7 +577,10 @@ export const addDnsProfileApiKey = async (
       // hash of raw api key
       const apiKeyHash = SHA256(apiKey.apiKeyValue)
       // base64 encode key just to not store raw bytes
-      const base64EncodedApiKey = Buffer.from(apiKey.apiKeyValue, 'utf8').toString('base64')
+      const base64EncodedApiKey = Buffer.from(
+        apiKey.apiKeyValue,
+        'utf8'
+      ).toString('base64')
       // console.log('DEBUG BASE64 ENCODING API KEY:', apiKeyHash)
       // console.log('base64EncodedApiKey:', base64EncodedApiKey)
 
@@ -822,7 +825,9 @@ export const getDnasApiKeyValue = async (
     }
 
     // decode the base64 key to return the raw api key value
-    const rawKey =  Buffer.from(apiKeyRow.apiKeyValue, 'base64').toString('utf-8')
+    const rawKey = Buffer.from(apiKeyRow.apiKeyValue, 'base64').toString(
+      'utf-8'
+    )
     return rawKey
   } catch (error) {
     console.error(
