@@ -26,7 +26,7 @@ export type UpdateDnasKey = {
   /**
    * Profile NFT.
    */
-  dnasKey: Partial<ProfileDnasKeyWithValue> | null
+  dnasKey: Partial<ProfileDnasKeyWithoutIds> | null
 }
 
 /**
@@ -111,7 +111,7 @@ export type ResolvedDnasApiKey = {
   /**
    * public description of s3 provider for specific key.
    */
-  type: string
+  storageType: string
   /**
    * JSON encoded metadata about key
    */
@@ -174,7 +174,7 @@ export type UpdateProfileRequest = {
 // Body of profile update request.
 export type UpdateDnasKeysRequest = {
   dnas: Partial<Omit<UpdateDnasKey, 'nonce'>> &
-    Pick<UpdateDnasKey, 'nonce' | 'daoAddr'>[]
+  Pick<UpdateDnasKey, 'nonce' | 'daoAddr'>[]
 }
 
 // Body of profile update response.
@@ -196,11 +196,12 @@ export type RegisterPublicKeyRequest = {
 export type RegisterDnasKeyRequest = {
   keys: {
     dao: string
+    scrtDnasAddr: string
+    mwOpAddr: string
     dnas: ProfileDnasKeyWithoutIds
   }[]
 }
 
-// Body of register public key response.
 export type RegisterPublicKeyResponse = { success: true } | { error: string }
 
 // Body of register public key response.
@@ -216,6 +217,7 @@ export type UnregisterPublicKeyResponse = { success: true } | { error: string }
 export type UseDnasKeyRequest = RequestBody<{
   dao: string
   keyOwner: string
+  scrtDnasAddr: string
   // keyHash: string
 }> & {
   files: File[]
@@ -224,16 +226,16 @@ export type UseDnasKeyRequest = RequestBody<{
 // Body of unregister public key response.
 export type UseDnasKeyResponse =
   | {
-      success: true
-      cid: string
-      type: string
-      id: string
-    }
+    success: true
+    cid: string
+    type: string
+    id: string
+  }
   | {
-      error: string
-      status?: number
-      details?: Record<string, unknown>
-    }
+    error: string
+    status?: number
+    details?: Record<string, unknown>
+  }
 
 // Metadata about files without including the full content
 export type FileMetadata = {
@@ -299,14 +301,15 @@ export type CustomAuthorizedRequest<
 
 /// Add the id to the db row value to keep the value in the db private
 export type ProfileDnasKeyWithHash = ResolvedDnasApiKey & { apiKeyHash: string }
+export type ProfileDnasKeyWithValue = ResolvedDnasApiKey & { apiKeyValue: string }
 /// Contains the base64 encoded api key value
-export type ProfileDnasKeyWithValue = ResolvedDnasApiKey & {
-  apiKeyValue: string
-}
 export type ProfileDnasKeyWithoutIds = Omit<
   ProfileDnasKeyWithValue,
   'id' | 'profileId'
->
+> & {
+  scrtDnasAddr: string
+  middlewareOpAddr: string
+}
 
 /**
  * Profile database row.
@@ -332,6 +335,7 @@ export type DbRowProfileDnasApiKey = {
   chainId: string
   daoAddr: string
   keyMetadata: string
+  scrtDnasAddr: string
   keyOwner: string
   apiKeyHash: string
   uploadLimit: string
@@ -351,7 +355,6 @@ export type DbRowProfilePublicKey = {
   createdAt: Date
   updatedAt: Date
 }
-
 /**
  * Profile public key chain preference database row.
  */
@@ -388,11 +391,11 @@ export type PublicKeyJson = {
   /**
    * Type of public key.
    */
-  type: string
+  ty: string
   /**
    * Public key data hexstring.
    */
-  hex: string
+  value: string
 }
 
 export type DnasMetadata = {

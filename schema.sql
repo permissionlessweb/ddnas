@@ -1,6 +1,5 @@
 -- Profile
 DROP TABLE IF EXISTS profiles;
-
 CREATE TABLE profiles (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   uuid TEXT NOT NULL,
@@ -19,7 +18,6 @@ CREATE TABLE profiles (
 
 -- ProfilePublicKey
 DROP TABLE IF EXISTS profile_public_keys;
-
 CREATE TABLE profile_public_keys (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   profileId INTEGER NOT NULL,
@@ -37,7 +35,6 @@ CREATE INDEX IF NOT EXISTS idx_profile_public_keys_public_key_hex ON profile_pub
 
 -- ProfilePublicKeyChainPreference
 DROP TABLE IF EXISTS profile_public_key_chain_preferences;
-
 CREATE TABLE profile_public_key_chain_preferences (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   profileId INTEGER NOT NULL,
@@ -82,7 +79,7 @@ CREATE TABLE dnas_api_keys (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     profileId INTEGER NOT NULL,
     type TEXT NOT NULL,
-    keyMetadata TEXT,
+    middlewareOpAddr TEXT, -- COntract address where key is stored
     uploadLimit TEXT,
     apiKeyHash VARBINARY(32), -- Will store SHA-256 hash of the API key
     chainId TEXT NOT NULL,    -- Added to store which blockchain chain this key is for
@@ -95,22 +92,6 @@ CREATE TABLE dnas_api_keys (
     CONSTRAINT unique_profile_chain_dao UNIQUE (profileId, chainId, daoAddr)
 );
 
--- api_keys table to allow storing the keys and metadata in separate rows
-DROP TABLE IF EXISTS api_keys;
-CREATE TABLE api_keys (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    dnasKeyId INTEGER NOT NULL UNIQUE, -- Added UNIQUE constraint
-    apiKeyValue VARBINARY NOT NULL,
-    createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_dnas_api_keys FOREIGN KEY (dnasKeyId) REFERENCES dnas_api_keys (id) ON DELETE CASCADE
-);
--- Create an index on apiKeyHash for faster lookups
-CREATE INDEX idx_apiKeyHash ON dnas_api_keys (apiKeyHash);
-
 -- Create indices for the new fields
 CREATE INDEX idx_dnas_keys_chain_dao ON dnas_api_keys (chainId, daoAddr);
 CREATE INDEX idx_profile_chain_dao_by_keys ON dnas_api_keys (profileId, chainId, daoAddr);
-
--- Create index on encryptedKey for faster lookups
-CREATE INDEX IF NOT EXISTS idx_apiKeyValue ON api_keys (apiKeyValue);

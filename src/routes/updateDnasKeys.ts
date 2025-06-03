@@ -71,7 +71,7 @@ export const updateDnasKeys = async (
   let daosToRemove: string[] = []
 
   try {
-    const profileRow = await getProfileFromPublicKeyHex(env, publicKey.hex)
+    const profileRow = await getProfileFromPublicKeyHex(env, publicKey.value)
     if (profileRow) {
       existingProfileId = profileRow.id
       let profileDnasKeys = await getProfileDnasApiKeys(env, existingProfileId)

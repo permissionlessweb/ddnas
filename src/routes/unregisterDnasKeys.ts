@@ -29,7 +29,7 @@ export const unregisterDnasKeys = async (
   // Get existing profile.
   let profile: DbRowProfile | null
   try {
-    profile = await getProfileFromPublicKeyHex(env, publicKey.hex)
+    profile = await getProfileFromPublicKeyHex(env, publicKey.value)
   } catch (err) {
     console.error('Profile retrieval', err)
 

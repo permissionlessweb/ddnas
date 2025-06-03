@@ -16,6 +16,8 @@ import {
   UpdateDnasKey,
   UpdateProfile,
 } from '../types'
+import { DefaultAuth, DefaultDnasMetadata, DnasAction, executeRegisterToScrtDnasKey, MiddlewareAuthObjectTransient } from './secret'
+import { Wallet } from 'secretjs'
 
 /**
  * Get the profile for a given name.
@@ -302,7 +304,7 @@ export const getProfilePublicKeyPerChain = async (
       .bind(profileId)
       .all<
         Pick<DbRowProfilePublicKeyChainPreference, 'chainId'> &
-          Pick<DbRowProfilePublicKey, 'type' | 'publicKeyHex'>
+        Pick<DbRowProfilePublicKey, 'type' | 'publicKeyHex'>
       >()
   ).results
 
@@ -322,7 +324,6 @@ export const saveDnasKeys = async (
   existingProfileId: number
 ): Promise<DbRowProfileDnasApiKey | null> => {
   let updatedDnasKeyRow: DbRowProfileDnasApiKey | null
-
   const existingProfile = await getProfileDnasApiKeys(env, existingProfileId)
 
   // if dnas key is empty, remove existing key from db by dao addr
@@ -338,6 +339,8 @@ export const saveDnasKeys = async (
           profileId, 
           type, 
           keyMetadata,
+          scrtDnasAddr,
+          middlewareOpAddr,
           uploadLimit,
           apiKeyHash,
           chainId,
@@ -357,14 +360,18 @@ export const saveDnasKeys = async (
       )
         .bind(
           existingProfileId,
-          publicKey.type,
+          publicKey.value,
           dnasKey.dnasKey?.keyMetadata || JSON.stringify({}),
+          dnasKey.dnasKey?.scrtDnasAddr,
+          dnasKey.dnasKey?.middlewareOpAddr,
           dnasKey.dnasKey?.uploadLimit || null,
           dnasKey.dnasKey?.apiKeyValue, // should exist as empty triggers removal of key from dao
           dnasKey.chainId,
           dnasKey.daoAddr
         )
         .first<DbRowProfileDnasApiKey>()
+
+      // todo: sign and send msg to smart contract state
       return updatedDnasKeyRow
     }
   }
@@ -382,7 +389,7 @@ export const saveProfile = async (
   // Optionally set chain preferences for this public key.
   chainIds?: string[]
 ): Promise<DbRowProfile> => {
-  const existingProfile = await getProfileFromPublicKeyHex(env, publicKey.hex)
+  const existingProfile = await getProfileFromPublicKeyHex(env, publicKey.value)
 
   let updatedProfileRow: DbRowProfile | null
   let profilePublicKeyId = existingProfile?.publicKeyId
@@ -438,8 +445,8 @@ export const saveProfile = async (
     )
       .bind(
         updatedProfileRow.id,
-        publicKey.type,
-        publicKey.hex,
+        publicKey.ty,
+        publicKey.value,
         publicKey.addressHex
       )
       .first<DbRowProfilePublicKey>()
@@ -496,7 +503,7 @@ export const addProfilePublicKey = async (
   chainIds?: string[]
 ) => {
   // Get profile this public key is currently attached to.
-  const currentProfile = await getProfileFromPublicKeyHex(env, publicKey.hex)
+  const currentProfile = await getProfileFromPublicKeyHex(env, publicKey.value)
 
   // If attached to a different profile already, remove it.
   if (currentProfile && currentProfile.id !== profileId) {
@@ -508,25 +515,25 @@ export const addProfilePublicKey = async (
     // If not attached to the current profile, attach it.
     !currentProfile || currentProfile.id !== profileId
       ? await env.DB.prepare(
-          `
+        `
           INSERT INTO profile_public_keys (profileId, type, publicKeyHex, addressHex)
           VALUES (?1, ?2, ?3, ?4)
           ON CONFLICT DO NOTHING
           RETURNING id
           `
-        )
-          .bind(profileId, publicKey.type, publicKey.hex, publicKey.addressHex)
-          .first<Pick<DbRowProfilePublicKey, 'id'>>()
+      )
+        .bind(profileId, publicKey.ty, publicKey.value, publicKey.addressHex)
+        .first<Pick<DbRowProfilePublicKey, 'id'>>()
       : // Otherwise just find the existing public key.
-        await env.DB.prepare(
-          `
+      await env.DB.prepare(
+        `
           SELECT id
           FROM profile_public_keys
           WHERE type = ?1 AND publicKeyHex = ?2
           `
-        )
-          .bind(publicKey.type, publicKey.hex)
-          .first<Pick<DbRowProfilePublicKey, 'id'>>()
+      )
+        .bind(publicKey.ty, publicKey.value)
+        .first<Pick<DbRowProfilePublicKey, 'id'>>()
   if (!profilePublicKeyRow) {
     throw new KnownError(500, 'Failed to save or retrieve profile public key.')
   }
@@ -549,104 +556,103 @@ export const addProfilePublicKey = async (
 
 export const addDnsProfileApiKey = async (
   env: Env,
+  wallet: Wallet,
   profileId: number,
   publicKey: PublicKey,
   apiKey: ProfileDnasKeyWithValue,
-  compositeKey: string[]
+  auth: MiddlewareAuthObjectTransient[]
 ) => {
   try {
     // Get the current profile attached to the public key
-    const currentProfile = await getProfileFromPublicKeyHex(env, publicKey.hex)
-
+    const currentProfile = await getProfileFromPublicKeyHex(env, publicKey.value);
     // If the api key is attached to a different profile, remove it
     if (currentProfile && currentProfile.id !== profileId) {
-      await removeDnasProfileApiKeys(env, currentProfile.id, compositeKey)
+      await removeDnasProfileApiKeys(env, currentProfile.id, auth.map((a) => a.compositeKey));
     }
+    // Collect actions for batch processing
+    const actions: DnasAction[] = [];
+    for (const { dao: { compositeKey, signMsgDocs, dmAuth }, authObj } of auth.map((key, index) => ({
+      dao: key,
+      authObj: auth[index],
+    }))) {
+      const [chainId, daoAddr] = compositeKey.split(':');
 
-    // For each DAO, create/update the DNAS API key entry
-    for (const dao of compositeKey) {
-      const [chainId, daoAddr] = dao.split(':')
+      if (!chainId || !daoAddr) { throw new KnownError(400, `${compositeKey}. Expected "chainId:daoAddr".`); }
 
-      if (!chainId || !daoAddr) {
-        throw new KnownError(
-          400,
-          `Invalid DAO format: ${dao}. Expected "chainId:daoAddr".`
-        )
-      }
+      // Metadata
+      const metadata: DefaultDnasMetadata = {
+        middlewareOpAddr: wallet.address,
+        scrtDnasAddr: authObj.dao_addr,
+      };
 
-      // hash of raw api key
-      const apiKeyHash = SHA256(apiKey.apiKeyValue)
-      // base64 encode key just to not store raw bytes
-      const base64EncodedApiKey = Buffer.from(
-        apiKey.apiKeyValue,
-        'utf8'
-      ).toString('base64')
-      // console.log('DEBUG BASE64 ENCODING API KEY:', apiKeyHash)
-      // console.log('base64EncodedApiKey:', base64EncodedApiKey)
+      /// api key
+      const apiKeyHash = SHA256(apiKey.apiKeyValue);
+      const base64EncodedApiKey = Buffer.from(apiKey.apiKeyValue, 'utf8').toString('base64');
 
-      // Insert new DNAS API key record
+      // client side db
       const dnasApiKeyRow = await env.DB.prepare(
         `
-        INSERT INTO dnas_api_keys (
-          profileId, 
-          type, 
-          keyMetadata,
-          uploadLimit,
-          apiKeyHash,
-          chainId,
-          daoAddr
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
-        ON CONFLICT (profileId, chainId, daoAddr) 
-        DO UPDATE SET
-          type = $2,
-          keyMetadata = $3,
-          uploadLimit = $4,
-          apiKeyHash = $5,
-          updatedAt = CURRENT_TIMESTAMP
-        RETURNING id
-      `
+          INSERT INTO dnas_api_keys (
+            profileId, 
+            type, 
+            keyMetadata,
+            uploadLimit,
+            apiKeyHash,
+            chainId,
+            daoAddr
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
+          ON CONFLICT (profileId, chainId, daoAddr) 
+          DO UPDATE SET
+            type = $2,
+            keyMetadata = $3,
+            uploadLimit = $4,
+            apiKeyHash = $5,
+            updatedAt = CURRENT_TIMESTAMP
+          RETURNING id
+        `
       )
         .bind(
           profileId,
-          publicKey.type,
-          apiKey.keyMetadata || JSON.stringify({}),
+          publicKey.ty,
+          JSON.stringify(metadata),
           apiKey.uploadLimit || null,
           apiKeyHash.toString(),
           chainId,
           daoAddr
         )
-        .first<{ id: number }>()
+        .first<{ id: number }>();
 
       if (!dnasApiKeyRow) {
-        throw new KnownError(500, `Failed to save DNAS API key for DAO: ${dao}`)
+        throw new KnownError(500, `Failed to save DNAS API key for DAO: ${compositeKey}`);
       }
 
-      // Insert the API key into api_keys table
-      // The trigger will handle updating the apiKeyHash in dnas_api_keys
-      const apiKeyRow = await env.DB.prepare(
-        `
-        INSERT INTO api_keys (
-          dnasKeyId, 
-          apiKeyValue
-        )
-        VALUES ($1, $2)
-        ON CONFLICT (dnasKeyId) 
-        DO UPDATE SET
-          apiKeyValue = $2,
-          updatedAt = CURRENT_TIMESTAMP
-        RETURNING id
-      `
-      )
-        .bind(dnasApiKeyRow.id, base64EncodedApiKey)
-        .first<{ id: number }>()
 
-      if (!apiKeyRow) {
-        throw new KnownError(500, `Failed to save API key for DAO: ${dao}`)
+      // creaet middleware auth
+      let signature = await wallet.signAmino(wallet.address, signMsgDocs)
+      let mwAuth: DefaultAuth = {
+        msg: JSON.stringify(signature.signed),
+        sig: signature.signature.signature,
+        pubkey: {
+          ty: signature.signature.pub_key.type,
+          value: Buffer.from(signature.signature.pub_key.value).toString('hex')
+        }
       }
+
+      // Collect action for this DAO
+      actions.push({
+        daoAddr,
+        chainId,
+        base64EncodedApiKey,
+        mwAuth,
+        dmAuth,
+      });
     }
 
-    return true
+    // broadcast msg to secret network
+    executeRegisterToScrtDnasKey(wallet, actions)
+    // Return actions for batch processing
+    return null;
   } catch (error) {
     console.error('Error adding DNAS profile API key:', error)
 
@@ -794,49 +800,6 @@ export const removeDnasProfileApiKeys = async (
   )
 }
 
-/**
- * Gets the actual API key value for a given DNAS API key ID
- *
- * @param env Database environment
- * @param dnasApiKeyId The ID of the DNAS API key from dnas_api_keys table
- * @returns The API key value or null if not found
- */
-export const getDnasApiKeyValue = async (
-  env: Env,
-  dnasApiKeyId: number
-): Promise<string | null> => {
-  try {
-    // Query the api_keys table to get the actual API key value
-    const apiKeyRow = await env.DB.prepare(
-      `
-      SELECT apiKeyValue
-      FROM api_keys
-      WHERE dnasKeyId = $1
-      ORDER BY updatedAt DESC
-      LIMIT 1
-    `
-    )
-      .bind(dnasApiKeyId)
-      .first<{ apiKeyValue: string }>()
-
-    if (!apiKeyRow) {
-      // console.log(`No API key found for DNAS API key ID: ${dnasApiKeyId}`)
-      return null
-    }
-
-    // decode the base64 key to return the raw api key value
-    const rawKey = Buffer.from(apiKeyRow.apiKeyValue, 'base64').toString(
-      'utf-8'
-    )
-    return rawKey
-  } catch (error) {
-    console.error(
-      `Error retrieving API key for DNAS API key ID ${dnasApiKeyId}:`,
-      error
-    )
-    throw new KnownError(500, 'Failed to retrieve API key value.', error)
-  }
-}
 
 async function processProfileDnasRows(
   env: Env,
@@ -864,7 +827,7 @@ async function processProfileDnasRows(
     // Ensure all required fields are strings
     fetchedKeys[compositeKey] = {
       chainId: String(row.chainId),
-      keyOwner: keyOwner[0].publicKey.hex,
+      keyOwner: keyOwner[0].publicKey.value,
       apiKeyHash: keyHash,
       keyMetadata: String(row.keyMetadata),
       // Only add uploadLimit if it exists, and ensure it's a string
@@ -876,3 +839,4 @@ async function processProfileDnasRows(
   // console.log('fetchedKeys:', fetchedKeys)
   return fetchedKeys
 }
+

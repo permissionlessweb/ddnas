@@ -46,8 +46,7 @@ export const fetchProfile: RouteHandler<Request> = async (
 
   let profileRow: DbRowProfile | null = null
   try {
-    // If no public key nor address hex is set, get address hex from bech32
-    // address.
+    // If no public key nor address hex is set, get address hex from bech32 address.
     if (!publicKey && !addressHex && bech32Address) {
       addressHex = toHex(fromBech32(bech32Address).data)
     }
@@ -87,15 +86,14 @@ export const fetchProfile: RouteHandler<Request> = async (
     for (const dna of ddnas) {
       const chainIdKey = String(dna.row.chainId)
       const exists = !dnasByChainAndDaoAddr[chainIdKey]
-      // console.log("exists", exists)
-      // console.log("publicKeysPerChain", publicKeysPerChain)
-
       // Initialize the chain record if it doesn't exist
       if (exists) {
         dnasByChainAndDaoAddr[chainIdKey] = {}
       }
-      // console.log("Processing DNAS entry:", JSON.stringify(dna.row, null, 2));
       const matchingPublicKeyRecord = publicKeysPerChain.find(({ chainId }) => {
+        // console.log("Processing DNAS entry:", JSON.stringify(dna.row, null, 2));
+        // console.log("exists", exists)
+        // console.log("publicKeysPerChain", publicKeysPerChain)
         // console.log("chainId:", chainId)
         // console.log("chainIdKey:", chainIdKey)
         return chainId === chainIdKey
@@ -106,8 +104,8 @@ export const fetchProfile: RouteHandler<Request> = async (
         const { chainId, publicKey } = matchingPublicKeyRecord
         const bech32Prefix = mustGetChain(chainId).bech32_prefix
         const daoMemberAddress = await publicKey.getBech32Address(bech32Prefix)
-        // console.log("daoMemberAddress:", daoMemberAddress);
         keyOwner = daoMemberAddress
+        // console.log("daoMemberAddress:", daoMemberAddress);
       } else {
         keyOwner = undefined
       }
@@ -165,7 +163,7 @@ export const fetchProfile: RouteHandler<Request> = async (
         if (publicKey) {
           profile.nft = await getOwnedNftWithImage(
             env,
-            makePublicKey(publicKey.type, publicKey.hex),
+            makePublicKey(publicKey.ty, publicKey.value),
             {
               chainId: profileRow.nftChainId,
               collectionAddress: profileRow.nftCollectionAddress,

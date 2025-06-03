@@ -1,9 +1,12 @@
+import { makeSignDoc, serializeSignDoc } from '@cosmjs/amino'
 import { makePublicKey } from '../publicKeys'
 import {
   AuthorizedRequest,
+
   DbRowProfile,
   Env,
   ProfileDnasKeyWithValue,
+  PublicKey,
   RegisterDnasKeyRequest,
   RegisterDnasKeyResponse,
 } from '../types'
@@ -16,11 +19,15 @@ import {
   saveProfile,
   verifyDNASWidgetEnabledAndDaoMember,
 } from '../utils'
+import { MiddlewareAuthData, MiddlewareAuthObjectTransient } from '../utils/secret'
+import { toBase64, Wallet } from 'secretjs'
 
+
+// TODO: asssert storage offlien signDOc & sigantures are done for secret network
 export const registerDnasKeys = async (
   {
     parsedBody: {
-      data: { auth, keys },
+      data,
       signature,
     },
     publicKey,
@@ -32,13 +39,13 @@ export const registerDnasKeys = async (
       status,
     })
   try {
-    if (!keys || !Array.isArray(keys)) {
+    if (!data.keys || !Array.isArray(data.keys)) {
       throw new Error('Keys must be provided as an array')
     }
 
     await Promise.all(
-      keys.filter((key) => {
-        return verifyDNASWidgetEnabledAndDaoMember(key.dao, auth)
+      data.keys.filter((key) => {
+        return verifyDNASWidgetEnabledAndDaoMember(key.dao, data.auth)
       })
     )
   } catch (err) {
@@ -53,13 +60,40 @@ export const registerDnasKeys = async (
     })
   }
 
+  const signer = publicKey.getBech32Address(data.auth.chainBech32Prefix)
+  const mwOpWallet = new Wallet(process.env.MIDDLEWARE_MNEMONIC);
+
+  const daoMemberSignedMsg = makeSignDoc(
+    [
+      {
+        type: data.auth.type,
+        value: {
+          signer,
+          data: JSON.stringify(data, undefined, 2),
+        },
+      },
+    ],
+    {
+      gas: '0',
+      amount: [
+        {
+          denom: data.auth.chainFeeDenom,
+          amount: '0',
+        },
+      ],
+    },
+    data.auth.chainId,
+    '',
+    0,
+    0
+  )
+
   // Find or create profile.
   let profile: DbRowProfile
-  // console.log('FETCHING PROFILE VIA publicKey.hex:', publicKey.hex)
   try {
     let _profile: DbRowProfile | null = await getProfileFromPublicKeyHex(
       env,
-      publicKey.hex
+      publicKey.value
     )
     // If no profile exists, create one.
     if (!_profile) {
@@ -73,11 +107,12 @@ export const registerDnasKeys = async (
           nft: null,
         },
         // Create with the current chain preference.
-        [auth.chainId]
+        [data.auth.chainId]
       )
       // will save api keys to profile after validate & increment nonce
     }
     // Log after successful DB operation
+    // console.log('FETCHING PROFILE VIA publicKey.hex:', publicKey.hex)
     // console.log('Profile saved successfully:', _profile)
     profile = _profile
   } catch (err) {
@@ -90,11 +125,7 @@ export const registerDnasKeys = async (
   }
 
   // Validate all nonces to prevent replay attacks.
-  if (
-    auth.nonce !== profile.nonce
-    // ||
-    // data.dnasApiKeys.some((key) => data.auth.nonce !== profile!.nonce)
-  ) {
+  if (data.auth.nonce !== profile.nonce) {
     return respond(401, {
       error: `Invalid nonce. Expected: ${profile.nonce}`,
     })
@@ -114,42 +145,90 @@ export const registerDnasKeys = async (
   }
 
   const dnasKeysToAdd = Object.entries(
-    keys.reduce(
-      (acc, { dnas, dao }) => {
-        const pubKeyKey = `${auth.publicKeyType}:${auth.publicKeyHex}`
+    data.keys.reduce(
+      (acc, { dnas, dao, }) => {
+        // form composite key
+        const pubKeyKey = `${data.auth.publicKeyType}:${data.auth.publicKeyHex}`
 
         // Initialize the entry if it doesn't exist
         if (!acc[pubKeyKey]) {
           acc[pubKeyKey] = {
             apiKeyValue: { profileId: profile.id, ...dnas },
             daos: new Set<string>(),
+            mwauthobj: new Set<MiddlewareAuthObjectTransient>(),
+          }
+        }
+
+        let mwAuthObj: MiddlewareAuthData = {
+          dm_bech32_addr: publicKey.getBech32Address(data.auth.chainBech32Prefix),
+          nonce: profile.nonce,
+        }
+
+        const middlewareSignDoc = makeSignDoc(
+          [
+            {
+              type: data.auth.type,
+              value: {
+                signer,
+                data: JSON.stringify({
+                  data: Buffer.from(JSON.stringify(mwAuthObj), 'utf8')
+                }, undefined, 2),
+              },
+            },
+          ],
+          {
+            gas: '0',
+            amount: [
+              {
+                denom: data.auth.chainFeeDenom,
+                amount: '0',
+              },
+            ],
+          },
+          data.auth.chainId,
+          '',
+          0,
+          0
+        )
+
+
+        let returnMw: MiddlewareAuthObjectTransient = {
+          ...mwAuthObj,
+          signMsgDocs: middlewareSignDoc,
+          compositeKey: pubKeyKey,
+          dmAuth: {
+            msg: Buffer.from(JSON.stringify(daoMemberSignedMsg), 'utf8').toString('base64'),
+            sig: signature,
+            pubkey: publicKey
           }
         }
 
         // Add the dao value to the Set
         // Format should be "chainId:daoAddr"
-        const daoKey = `${auth.chainId}:${dao}`
+        const daoKey = `${data.auth.chainId}:${dao}`
         acc[pubKeyKey].daos.add(daoKey)
+        acc[pubKeyKey].mwauthobj.add(returnMw)
 
         return acc
       },
       {} as Record<
         string,
-        { apiKeyValue: ProfileDnasKeyWithValue; daos: Set<string> }
+        { apiKeyValue: ProfileDnasKeyWithValue; daos: Set<string>, mwauthobj: Set<MiddlewareAuthObjectTransient>, }
       >
     )
   )
 
   try {
     await Promise.all(
-      dnasKeysToAdd.map(([publicKey, entry]) => {
-        const [publicKeyType, publicKeyHex] = publicKey.split(':')
+      dnasKeysToAdd.map(([pk, entry]) => {
+        const [pkType, pkHex] = pk.split(':')
         return addDnsProfileApiKey(
           env,
+          mwOpWallet,
           profile!.id,
-          makePublicKey(publicKeyType, publicKeyHex),
+          makePublicKey(pkType, pkHex),
           entry.apiKeyValue,
-          Array.from(entry.daos)
+          Array.from(entry.mwauthobj),
         )
       })
     )

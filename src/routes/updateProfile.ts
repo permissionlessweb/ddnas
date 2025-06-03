@@ -96,7 +96,7 @@ export const updateProfile = async (
   }
 
   try {
-    const profileRow = await getProfileFromPublicKeyHex(env, publicKey.hex)
+    const profileRow = await getProfileFromPublicKeyHex(env, publicKey.value)
     if (profileRow) {
       existingProfileId = profileRow.id
       profile = {

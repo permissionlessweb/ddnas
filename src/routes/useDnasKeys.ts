@@ -1,19 +1,25 @@
+import { toBase64, toUtf8, Wallet } from 'secretjs'
+import { createSecretClient } from '../chains/secret'
 import { makePublicKey } from '../publicKeys'
 import {
   CustomAuthorizedRequest,
   Env,
+  PublicKey,
   RequestBody,
   UseDnasKeyRequest,
 } from '../types'
 import {
-  getDnasApiKeyValue,
+  DefaultDnasMetadata,
   getProfileDnasApiKeys,
   getProfileFromPublicKeyHex,
+  queryDnasApiEntrypoint,
+  RegisterDnasKey,
   respond,
   verifyRequestBodyAndGetPublicKey,
 } from '../utils'
 import { getIsDaoMember } from '../utils/dao'
 import { JackalErrorResponse, JackalSuccessResponse } from '../utils/jackal'
+import { makeSignDoc } from '@cosmjs/amino'
 
 const jackalApiCreateCollectionBase =
   'https://pinapi.jackalprotocol.com/api/collections/test21233'
@@ -25,7 +31,7 @@ const jackalApiAddFileToCollection =
 
 export const useDnasKeys = async (
   request: CustomAuthorizedRequest<UseDnasKeyRequest>,
-  env: Env
+  env: Env,
 ) => {
   // Grab form data from request
   const formData: FormData = await request.formData?.()
@@ -70,7 +76,6 @@ export const useDnasKeys = async (
   const signer = dnasChainpublicKey.getBech32Address(
     custom.auth.chainBech32Prefix
   )
-  // console.log('signer', signer)
 
   const daoMember = await getIsDaoMember(
     custom.auth.chainId,
@@ -83,10 +88,7 @@ export const useDnasKeys = async (
     })
   }
 
-  const addressHex = custom.keyOwner
-  console.log(addressHex)
-
-  const profile = await getProfileFromPublicKeyHex(env, addressHex)
+  const profile = await getProfileFromPublicKeyHex(env, custom.keyOwner)
   if (!profile) {
     return respond(500, {
       error: 'Dao member has not registered a profile for Dnas support.',
@@ -94,7 +96,6 @@ export const useDnasKeys = async (
   }
 
   const profileDnasApiKeys = await getProfileDnasApiKeys(env, profile.id)
-
   // - key owner has registered a key to this dao
   const thisDnasApi = profileDnasApiKeys.find(
     (key) =>
@@ -109,8 +110,51 @@ export const useDnasKeys = async (
     })
   }
 
-  // get the actual api key
-  let rawApiKey = await getDnasApiKeyValue(env, thisDnasApi.row.id)
+  const client = createSecretClient()
+  const wallet = new Wallet(process.env.MIDDLEWARE_MNEMONIC)
+
+  const signDoc = makeSignDoc(
+    [
+      {
+        type: parsedBody.data.auth.type,
+        value: {
+          signer: parsedBody.data.auth.publicKeyHex,
+          data: toBase64(toUtf8(signedBodyString)),
+        },
+      },
+    ],
+    {
+      gas: '0',
+      amount: [
+        {
+          denom: 'uscrt',
+          amount: '0',
+        },
+      ],
+    },
+    'secret-4',
+    '',
+    0,
+    0
+  )
+
+
+
+  let retrieveData: RegisterDnasKey = {
+    mwAuthObj: {
+      dao_addr: custom.dao,
+      dm_bech32_addr: signer,
+      nonce: profile.nonce,
+    },
+    dmPubkey: custom.auth.publicKeyHex,
+    mwOp: wallet,
+    dmMsg: JSON.stringify(signDoc),
+    dmSig: parsedBody.signature
+  }
+
+
+  let rawApiKey = await queryDnasApiEntrypoint(client, wallet, retrieveData, JSON.parse(thisDnasApi.row.keyMetadata))
+
   if (!rawApiKey) {
     return respond(500, {
       error: 'Unable to resolve rawApiKey.',

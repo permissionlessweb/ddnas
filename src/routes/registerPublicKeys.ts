@@ -36,7 +36,7 @@ export const registerPublicKeys = async (
   try {
     await Promise.all(
       publicKeys
-        .filter((key) => key.data.auth.publicKeyHex !== publicKey.hex)
+        .filter((key) => key.data.auth.publicKeyHex !== publicKey.value)
         .map((key) => verifyRequestBodyAndGetPublicKey(key))
     )
   } catch (err) {
@@ -52,7 +52,7 @@ export const registerPublicKeys = async (
   }
 
   // Validate all keys inside allowed this public key to register them.
-  if (publicKeys.some((key) => key.data.allow !== publicKey.hex)) {
+  if (publicKeys.some((key) => key.data.allow !== publicKey.value)) {
     return respond(401, {
       error: `Invalid allowed public key. Expected: ${publicKey}`,
     })
@@ -63,7 +63,7 @@ export const registerPublicKeys = async (
   try {
     let _profile: DbRowProfile | null = await getProfileFromPublicKeyHex(
       env,
-      publicKey.hex
+      publicKey.value
     )
 
     // If no profile exists, create one.
@@ -122,12 +122,12 @@ export const registerPublicKeys = async (
         const key = `${data.auth.publicKeyType}:${data.auth.publicKeyHex}`
         const existing = acc[key] || new Set<string>()
 
-        // If no chains passed, default to the chain used to sign.
-        ;(data.chainIds || [data.auth.chainId]).forEach((chainId) => {
-          if (!existing.has(chainId)) {
-            existing.add(chainId)
-          }
-        })
+          // If no chains passed, default to the chain used to sign.
+          ; (data.chainIds || [data.auth.chainId]).forEach((chainId) => {
+            if (!existing.has(chainId)) {
+              existing.add(chainId)
+            }
+          })
 
         acc[key] = existing
         return acc
